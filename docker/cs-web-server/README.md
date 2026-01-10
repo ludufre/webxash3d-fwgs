@@ -135,7 +135,7 @@ Then open `http://<your-server-ip>:27016` in your browser!
 | `X_POWERED_BY_VALUE`   | Custom value for `X-Powered-By` header if not disabled                                                                                            | `CS 1.6 Web Server` |
 | `PONG_WAIT_SECONDS`    | Seconds to wait for a pong/any message before the WebSocket connection is considered dead (must be a positive integer, otherwise defaults to `60`) | `60`                |
 | `WRITE_WAIT_SECONDS`   | Write deadline in seconds for WebSocket writes and pings (must be a positive integer, otherwise defaults to `10`)                                  | `10`                |
-| `ADMIN_USERNAME`       | Username for [Admin Panel](#-admin-panel) access (leave empty to disable)                                                                         | `admin`             |
+| `ADMIN_PANEL_USER`     | Username for [Admin Panel](#-admin-panel) access (leave empty to disable)                                                                         | `admin`             |
 | `ADMIN_PANEL_PASSWORD` | Password for [Admin Panel](#-admin-panel) access (leave empty to disable)                                                                         | `<strong_password>` |
 
 ### Engine Configuration
@@ -173,7 +173,7 @@ This image includes an optional **Admin Panel** for remote administration (RCON,
 
 ```yaml
 environment:
-  ADMIN_USERNAME: "admin"
+  ADMIN_PANEL_USER: "admin"
   ADMIN_PANEL_PASSWORD: "<strong_password>"
 ```
 
