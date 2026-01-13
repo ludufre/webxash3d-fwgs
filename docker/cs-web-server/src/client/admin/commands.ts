@@ -1,130 +1,211 @@
-import { elements } from "./dom";
-import {
-  addLog,
-  showSettingsLoading,
-  showSettingsForm,
-  showSettingsRefreshButton,
-  hideSettingRow,
-  showAllSettingRows
-} from "./ui";
-import type { TokenData } from "./types";
+import { domManager } from "./dom";
+import { uiManager } from "./ui";
+import { webSocketManager } from "./websocket";
 import { getInputValue } from "./utils";
+import { apiClient } from "./api";
+import type { TokenData, DOMElements } from "./types";
 
 // ============================================
-// Command Management
+// Command Service Class
 // ============================================
 
-let currentTokenData: TokenData | null = null;
-let onLogoutCallback: (() => void) | null = null;
-let originalSettings: Map<string, string> = new Map();
-let receivedSettings: Set<string> = new Set();
-let settingsTimeout: any = null;
-let allSettingNames: string[] = [];
+class CommandService {
+  private currentTokenData: TokenData | null = null;
+  private onLogoutCallback: (() => void) | null = null;
+  private originalSettings: Map<string, string> = new Map();
+  private receivedSettings: Set<string> = new Set();
+  private settingsTimeout: ReturnType<typeof setTimeout> | null = null;
+  private allSettingNames: string[] = [];
 
-/**
- * Initializes command system
- */
-export function initializeCommands(
-  tokenData: TokenData,
-  onLogout: () => void
-): void {
-  currentTokenData = tokenData;
-  onLogoutCallback = onLogout;
-}
-
-/**
- * Sends a command to the server
- */
-export async function sendCommand(command: string): Promise<void> {
-  if (!currentTokenData) {
-    addLog("System", "ERROR: Not authenticated");
-    return;
+  /**
+   * Gets DOM elements
+   */
+  private get el(): DOMElements {
+    return domManager.elements;
   }
 
-  addLog("System", `> ${command}`);
+  /**
+   * Initializes command system
+   */
+  initialize(tokenData: TokenData, onLogout: () => void): void {
+    this.currentTokenData = tokenData;
+    this.onLogoutCallback = onLogout;
 
-  try {
-    const response = await fetch("/rcon", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${currentTokenData.token}`,
-      },
-      body: JSON.stringify({ command }),
+    // Set up callback for settings received via WebSocket
+    webSocketManager.setSettingReceivedCallback((settingName) => {
+      this.onSettingReceived(settingName);
     });
-
-    if (response.status === 401) {
-      addLog("System", "ERROR: Authentication failed - token expired");
-      setTimeout(() => {
-        if (onLogoutCallback) {
-          onLogoutCallback();
-        }
-      }, 1000);
-      return;
-    }
-
-    if (response.status === 403) {
-      addLog("System", "ERROR: Insufficient permissions");
-      return;
-    }
-
-    if (response.status === 429) {
-      addLog("System", "ERROR: Rate limit exceeded - please slow down");
-      return;
-    }
-
-    if (!response.ok) {
-      addLog("System", `ERROR: Failed to execute command (${response.status})`);
-      return;
-    }
-
-    // Command sent successfully (204 No Content)
-    // Output will appear in logs via WebSocket
-  } catch (error) {
-    addLog("System", `ERROR: ${error}`);
   }
-}
 
-/**
- * Sets up command form handler
- */
-export function setupCommandHandler(): void {
-  elements.commandForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const command = elements.commandInput.value.trim();
+  /**
+   * Sends a command to the server
+   */
+  async sendCommand(command: string): Promise<void> {
+    if (!this.currentTokenData) {
+      uiManager.addLog("System", "ERROR: Not authenticated");
+      return;
+    }
 
-    if (!command) return;
+    uiManager.addLog("System", `> ${command}`);
 
-    await sendCommand(command);
-    elements.commandInput.value = "";
-  });
-}
+    try {
+      const response = await apiClient.post<void>("/rcon", { command });
 
-/**
- * Sets up quick command buttons
- */
-export function setupQuickCommands(): void {
-  document.querySelectorAll(".quick-cmd").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const command = btn.getAttribute("data-cmd");
-      if (command) {
-        sendCommand(command);
+      if (response.status === 401) {
+        uiManager.addLog(
+          "System",
+          "ERROR: Authentication failed - token expired"
+        );
+        setTimeout(() => {
+          if (this.onLogoutCallback) {
+            this.onLogoutCallback();
+          }
+        }, 1000);
+        return;
       }
-    });
-  });
-}
 
-export function setupGameSettingsHandler(): void {
-  elements.gameSettingsCurrent.addEventListener("click", async (e) => {
-    await fetchGameSettings();
-  });
+      if (response.status === 403) {
+        uiManager.addLog("System", "ERROR: Insufficient permissions");
+        return;
+      }
 
-  elements.settingsRefreshBtn.addEventListener("click", () => {
-    window.location.reload();
-  });
+      if (response.status === 429) {
+        uiManager.addLog(
+          "System",
+          "ERROR: Rate limit exceeded - please slow down"
+        );
+        return;
+      }
 
-  elements.gameSettingsApply.addEventListener("click", async (e) => {
-    const form = elements.gameSettingsForm;
+      if (!response.ok) {
+        uiManager.addLog(
+          "System",
+          `ERROR: Failed to execute command (${response.status})`
+        );
+        return;
+      }
+
+      // Command sent successfully (204 No Content)
+      // Output will appear in logs via WebSocket
+    } catch (error) {
+      uiManager.addLog("System", `ERROR: ${error}`);
+    }
+  }
+
+  // ============================================
+  // Settings Management
+  // ============================================
+
+  /**
+   * Called when a setting is received from WebSocket
+   */
+  onSettingReceived(settingName: string): void {
+    this.receivedSettings.add(settingName);
+  }
+
+  /**
+   * Fetches game settings from server
+   */
+  async fetchGameSettings(): Promise<void> {
+    const form = this.el.gameSettingsForm;
+    const inputs = form.querySelectorAll("input, select");
+
+    uiManager.showSettingsLoading();
+    uiManager.showAllSettingRows();
+    this.receivedSettings.clear();
+    this.originalSettings.clear();
+
+    this.allSettingNames = Array.from(inputs)
+      .map((i) => (i as HTMLInputElement | HTMLSelectElement).name)
+      .filter((name) => name);
+
+    if (this.settingsTimeout) {
+      clearTimeout(this.settingsTimeout);
+    }
+
+    this.settingsTimeout = setTimeout(() => {
+      this.handleSettingsTimeout();
+    }, 2000);
+
+    try {
+      const response = await apiClient.post<void>("/rcon", {
+        command: this.allSettingNames,
+      });
+
+      if (response.status !== 204) {
+        uiManager.addLog("System", "Failed to get current settings");
+        if (this.settingsTimeout) {
+          clearTimeout(this.settingsTimeout);
+        }
+        uiManager.showSettingsRefreshButton();
+        return;
+      }
+
+      setTimeout(() => {
+        this.finalizeSettingsFetch();
+      }, 500);
+    } catch (error) {
+      uiManager.addLog("System", `ERROR: ${error}`);
+      if (this.settingsTimeout) {
+        clearTimeout(this.settingsTimeout);
+      }
+      uiManager.showSettingsRefreshButton();
+    }
+  }
+
+  /**
+   * Handles settings timeout
+   */
+  private handleSettingsTimeout(): void {
+    if (this.receivedSettings.size === 0) {
+      uiManager.addLog("System", "Timeout: No settings received from server");
+      uiManager.showSettingsRefreshButton();
+    } else {
+      this.finalizeSettingsFetch();
+    }
+  }
+
+  /**
+   * Finalizes settings fetch
+   */
+  private finalizeSettingsFetch(): void {
+    if (this.settingsTimeout) {
+      clearTimeout(this.settingsTimeout);
+      this.settingsTimeout = null;
+    }
+
+    if (this.receivedSettings.size === 0) {
+      uiManager.showSettingsRefreshButton();
+      return;
+    }
+
+    for (const fieldName of this.allSettingNames) {
+      if (!this.receivedSettings.has(fieldName)) {
+        uiManager.hideSettingRow(fieldName);
+      }
+    }
+
+    for (const fieldName of this.receivedSettings) {
+      const input = document.querySelector<
+        HTMLInputElement | HTMLSelectElement
+      >(`#game-settings [name="${fieldName}"]`);
+      if (input) {
+        this.originalSettings.set(fieldName, getInputValue(input));
+      }
+    }
+
+    uiManager.showSettingsForm();
+    uiManager.addLog(
+      "System",
+      `Loaded ${this.receivedSettings.size} setting(s)`
+    );
+  }
+
+  /**
+   * Applies changed game settings
+   */
+  async applyGameSettings(): Promise<void> {
+    const form = this.el.gameSettingsForm;
     const inputs = form.querySelectorAll("input, select");
 
     let changedCount = 0;
@@ -134,132 +215,89 @@ export function setupGameSettingsHandler(): void {
       if (!element.name) continue;
 
       const value = getInputValue(element);
-      const originalValue = originalSettings.get(element.name);
+      const originalValue = this.originalSettings.get(element.name);
 
       // Only send if value changed or if we don't have original value
       if (originalValue === undefined || originalValue !== value) {
-        await sendCommand(`${element.name} "${value.replace(/"/g, " ")}"`);
+        await this.sendCommand(`${element.name} "${value.replace(/"/g, " ")}"`);
         changedCount++;
       }
     }
 
     if (changedCount === 0) {
-      addLog("System", "No settings changed");
+      uiManager.addLog("System", "No settings changed");
     } else {
-      addLog("System", `Applied ${changedCount} setting(s)`);
+      uiManager.addLog("System", `Applied ${changedCount} setting(s)`);
     }
-  });
-}
-
-async function fetchGameSettings(): Promise<void> {
-  const form = elements.gameSettingsForm;
-  const inputs = form.querySelectorAll("input, select");
-
-  showSettingsLoading();
-  showAllSettingRows();
-  receivedSettings.clear();
-  originalSettings.clear();
-
-  allSettingNames = Array.from(inputs).map(
-    (i) => (i as HTMLInputElement | HTMLSelectElement).name
-  ).filter(name => name);
-
-  if (settingsTimeout) {
-    clearTimeout(settingsTimeout);
   }
-  settingsTimeout = setTimeout(() => {
-    handleSettingsTimeout();
-  }, 2000) as any;
 
-  try {
-    const response = await fetch("/rcon", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${currentTokenData!.token}`,
-      },
-      body: JSON.stringify({
-        command: allSettingNames,
-      }),
+  // ============================================
+  // Event Handlers Setup
+  // ============================================
+
+  /**
+   * Sets up command form handler
+   */
+  setupCommandHandler(): void {
+    this.el.commandForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const command = this.el.commandInput.value.trim();
+
+      if (!command) return;
+
+      await this.sendCommand(command);
+      this.el.commandInput.value = "";
+    });
+  }
+
+  /**
+   * Sets up quick command buttons
+   */
+  setupQuickCommands(): void {
+    document.querySelectorAll(".quick-cmd").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const command = btn.getAttribute("data-cmd");
+        if (command) {
+          this.sendCommand(command);
+        }
+      });
+    });
+  }
+
+  /**
+   * Sets up game settings handlers
+   */
+  setupGameSettingsHandler(): void {
+    this.el.gameSettingsCurrent.addEventListener("click", async () => {
+      await this.fetchGameSettings();
     });
 
-    if (response.status !== 204) {
-      addLog("System", "Failed to get current settings");
-      clearTimeout(settingsTimeout);
-      showSettingsRefreshButton();
-      return;
-    }
+    this.el.settingsRefreshBtn.addEventListener("click", () => {
+      window.location.reload();
+    });
 
-    setTimeout(() => {
-      finalizeSettingsFetch();
-    }, 500);
+    this.el.gameSettingsApply.addEventListener("click", async () => {
+      await this.applyGameSettings();
+    });
+  }
 
-  } catch (error) {
-    addLog("System", `ERROR: ${error}`);
-    clearTimeout(settingsTimeout);
-    showSettingsRefreshButton();
+  /**
+   * Sets up changelevel button handler
+   */
+  setupChangelevelHandler(): void {
+    this.el.changelevelBtn.addEventListener("click", () => {
+      const selectedMap = this.el.mapsSelect.value;
+      if (selectedMap) {
+        this.sendCommand(`changelevel ${selectedMap}`);
+      }
+    });
+
+    // Enable/disable button based on select state
+    this.el.mapsSelect.addEventListener("change", () => {
+      this.el.changelevelBtn.disabled = !this.el.mapsSelect.value;
+    });
   }
 }
 
-function handleSettingsTimeout(): void {
-  if (receivedSettings.size === 0) {
-    addLog("System", "Timeout: No settings received from server");
-    showSettingsRefreshButton();
-  } else {
-    finalizeSettingsFetch();
-  }
-}
-
-function finalizeSettingsFetch(): void {
-  if (settingsTimeout) {
-    clearTimeout(settingsTimeout);
-    settingsTimeout = null;
-  }
-
-  if (receivedSettings.size === 0) {
-    showSettingsRefreshButton();
-    return;
-  }
-
-  for (const fieldName of allSettingNames) {
-    if (!receivedSettings.has(fieldName)) {
-      hideSettingRow(fieldName);
-    }
-  }
-
-  for (const fieldName of receivedSettings) {
-    const input = document.querySelector<HTMLInputElement | HTMLSelectElement>(
-      `#game-settings [name="${fieldName}"]`
-    );
-    if (input) {
-      originalSettings.set(fieldName, getInputValue(input));
-    }
-  }
-
-  showSettingsForm();
-  addLog("System", `Loaded ${receivedSettings.size} setting(s)`);
-}
-
-/**
- * Called by WebSocket when a setting is received
- */
-export function onSettingReceived(settingName: string): void {
-  receivedSettings.add(settingName);
-}
-
-/**
- * Sets up changelevel button handler
- */
-export function setupChangelevelHandler(): void {
-  elements.changelevelBtn.addEventListener("click", () => {
-    const selectedMap = elements.mapsSelect.value;
-    if (selectedMap) {
-      sendCommand(`changelevel ${selectedMap}`);
-    }
-  });
-
-  // Enable/disable button based on select state
-  elements.mapsSelect.addEventListener("change", () => {
-    elements.changelevelBtn.disabled = !elements.mapsSelect.value;
-  });
-}
+// Export singleton instance
+export const commandService = new CommandService();
