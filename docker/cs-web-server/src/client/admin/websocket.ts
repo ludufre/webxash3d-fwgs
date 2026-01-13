@@ -2,6 +2,7 @@ import { uiManager } from "./ui";
 import { domManager } from "./dom";
 import { logger } from "./logger";
 import type { TokenData, WebSocketMessage, DOMElements } from "./types";
+import { stripAnsiCodes } from "./utils";
 
 // ============================================
 // WebSocket Manager Class
@@ -85,7 +86,7 @@ class WebSocketManager {
    * Updates a setting input from log message
    */
   private updateSettingFromMessage(message: string): void {
-    const checkRegex = /.+"([A-Za-z_]+)" is "(.+?|)"(.+|)$/;
+    const checkRegex = /.+"([A-Za-z_]+)" is "(.+?|)"( \( "(.+|)" \)|)$/;
     if (!checkRegex.test(message)) return;
 
     const match = message.match(checkRegex);
@@ -195,7 +196,7 @@ class WebSocketManager {
         });
       } else if (data.event === "log" && data.timestamp && data.message) {
         uiManager.addLog(data.timestamp, data.message);
-        this.updateSettingFromMessage(data.message);
+        this.updateSettingFromMessage(stripAnsiCodes(data.message));
         this.processMapList(data.message);
       }
     } catch (error) {
