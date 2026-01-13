@@ -1,51 +1,56 @@
-import type { TokenData } from './types';
+import type { TokenData } from "./types";
 
 // ============================================
-// Local Storage Management
+// Storage Manager Class
 // ============================================
 
-const KEYS = {
-  TOKEN: 'adminToken',
-  EXPIRY: 'adminTokenExpiry',
-  USERNAME: 'adminUsername',
-} as const;
+class StorageManager {
+  private readonly KEYS = {
+    TOKEN: "adminToken",
+    EXPIRY: "adminTokenExpiry",
+    USERNAME: "adminUsername",
+  } as const;
 
-/**
- * Saves token data to localStorage
- */
-export function saveTokenData(tokenData: TokenData): void {
-  localStorage.setItem(KEYS.TOKEN, tokenData.token);
-  localStorage.setItem(KEYS.EXPIRY, tokenData.expiresAt.toString());
-  localStorage.setItem(KEYS.USERNAME, tokenData.username);
-}
-
-/**
- * Loads token data from localStorage
- * Returns null if not found or expired
- */
-export function loadTokenData(): TokenData | null {
-  const token = localStorage.getItem(KEYS.TOKEN);
-  const expiry = localStorage.getItem(KEYS.EXPIRY);
-  const username = localStorage.getItem(KEYS.USERNAME);
-
-  if (!token || !expiry || !username) {
-    return null;
+  /**
+   * Saves token data to localStorage
+   */
+  saveTokenData(tokenData: TokenData): void {
+    localStorage.setItem(this.KEYS.TOKEN, tokenData.token);
+    localStorage.setItem(this.KEYS.EXPIRY, tokenData.expiresAt.toString());
+    localStorage.setItem(this.KEYS.USERNAME, tokenData.username);
   }
 
-  const expiresAt = parseInt(expiry, 10);
-  if (expiresAt <= Date.now()) {
-    clearTokenData();
-    return null;
+  /**
+   * Loads token data from localStorage
+   * Returns null if not found or expired
+   */
+  loadTokenData(): TokenData | null {
+    const token = localStorage.getItem(this.KEYS.TOKEN);
+    const expiry = localStorage.getItem(this.KEYS.EXPIRY);
+    const username = localStorage.getItem(this.KEYS.USERNAME);
+
+    if (!token || !expiry || !username) {
+      return null;
+    }
+
+    const expiresAt = parseInt(expiry, 10);
+    if (expiresAt <= Date.now()) {
+      this.clearTokenData();
+      return null;
+    }
+
+    return { token, expiresAt, username };
   }
 
-  return { token, expiresAt, username };
+  /**
+   * Clears token data from localStorage
+   */
+  clearTokenData(): void {
+    localStorage.removeItem(this.KEYS.TOKEN);
+    localStorage.removeItem(this.KEYS.EXPIRY);
+    localStorage.removeItem(this.KEYS.USERNAME);
+  }
 }
 
-/**
- * Clears token data from localStorage
- */
-export function clearTokenData(): void {
-  localStorage.removeItem(KEYS.TOKEN);
-  localStorage.removeItem(KEYS.EXPIRY);
-  localStorage.removeItem(KEYS.USERNAME);
-}
+// Export singleton instance
+export const storageManager = new StorageManager();

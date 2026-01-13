@@ -1,73 +1,84 @@
-import { loadTokenData } from "./storage";
-import {
-  prefetchSalt,
-  setupAuthHandler,
-  setupDisconnectHandler,
-  initializeAdminPanel,
-  logout,
-} from "./auth";
-import { connectWebSocket, disconnectWebSocket } from "./websocket";
-import {
-  setupCommandHandler,
-  setupQuickCommands,
-  initializeCommands,
-  setupGameSettingsHandler,
-  setupChangelevelHandler,
-} from "./commands";
-import { setupAutoScroll, clearLogs, showAuthPanel } from "./ui";
+import { storageManager } from "./storage";
+import { authService } from "./auth";
+import { webSocketManager } from "./websocket";
+import { commandService } from "./commands";
+import { uiManager } from "./ui";
+import { apiClient } from "./api";
+import { logger } from "./logger";
 import type { TokenData } from "./types";
 
 // ============================================
-// Application State
+// Admin Application Class
 // ============================================
 
-let tokenData: TokenData | null = null;
+class AdminApp {
+  private tokenData: TokenData | null = null;
 
-// ============================================
-// Event Handlers
-// ============================================
+  /**
+   * Handles logout
+   */
+  private handleLogout = (): void => {
+    logger.info("User logged out");
+    webSocketManager.disconnect();
+    uiManager.clearLogs();
+    uiManager.showAuthPanel();
+    apiClient.setAuthToken(null);
+    this.tokenData = null;
+  };
 
-function handleLogout(): void {
-  disconnectWebSocket();
-  clearLogs();
-  showAuthPanel();
-  tokenData = null;
-}
+  /**
+   * Handles login
+   */
+  private handleLogin = (newTokenData: TokenData): void => {
+    logger.info("User logged in:", newTokenData.username);
+    this.tokenData = newTokenData;
+    apiClient.setAuthToken(newTokenData.token);
+    commandService.initialize(this.tokenData, this.handleLogout);
+    webSocketManager.connect(this.tokenData, this.handleLogout);
+  };
 
-function handleLogin(newTokenData: TokenData): void {
-  tokenData = newTokenData;
-  initializeCommands(tokenData, handleLogout);
-  connectWebSocket(tokenData, handleLogout);
-}
+  /**
+   * Initializes the application
+   */
+  async init(): Promise<void> {
+    logger.info("Admin panel initializing...");
 
-// ============================================
-// Initialization
-// ============================================
+    // Prefetch salt (non-blocking)
+    authService.prefetchSalt();
 
-async function init(): Promise<void> {
-  // Prefetch salt (non-blocking)
-  prefetchSalt();
+    // Setup UI
+    uiManager.setupAutoScroll();
 
-  // Setup UI
-  setupAutoScroll();
+    // Setup event handlers
+    authService.setupAuthHandler(this.handleLogin);
+    authService.setupDisconnectHandler(this.handleLogout);
+    commandService.setupCommandHandler();
+    commandService.setupQuickCommands();
+    commandService.setupGameSettingsHandler();
+    commandService.setupChangelevelHandler();
 
-  // Setup event handlers
-  setupAuthHandler(handleLogin);
-  setupDisconnectHandler(handleLogout);
-  setupCommandHandler();
-  setupQuickCommands();
-  setupGameSettingsHandler();
-  setupChangelevelHandler();
+    // Check for existing session
+    const storedTokenData = storageManager.loadTokenData();
+    if (storedTokenData) {
+      logger.info("Restoring session for:", storedTokenData.username);
+      this.tokenData = storedTokenData;
+      apiClient.setAuthToken(storedTokenData.token);
+      authService.initializeAdminPanel(this.tokenData);
+      commandService.initialize(this.tokenData, this.handleLogout);
+      webSocketManager.connect(this.tokenData, this.handleLogout);
+    } else {
+      logger.info("No stored session found");
+    }
 
-  // Check for existing session
-  const storedTokenData = loadTokenData();
-  if (storedTokenData) {
-    tokenData = storedTokenData;
-    initializeAdminPanel(tokenData);
-    initializeCommands(tokenData, handleLogout);
-    connectWebSocket(tokenData, handleLogout);
+    logger.info("Admin panel ready");
   }
 }
 
-// Start application
-window.addEventListener("DOMContentLoaded", init);
+// ============================================
+// Application Entry Point
+// ============================================
+
+const app = new AdminApp();
+
+// Start application when DOM is ready
+window.addEventListener("DOMContentLoaded", () => app.init());

@@ -1,3 +1,5 @@
+import type { JWTPayload } from "./types";
+
 // ============================================
 // Utility Functions
 // ============================================
@@ -5,7 +7,7 @@
 /**
  * Decodes JWT payload
  */
-export function decodeJWT(token: string): any {
+export function decodeJWT(token: string): JWTPayload | null {
   try {
     const base64Url = token.split(".")[1];
     const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
@@ -15,7 +17,7 @@ export function decodeJWT(token: string): any {
         .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
         .join("")
     );
-    return JSON.parse(jsonPayload);
+    return JSON.parse(jsonPayload) as JWTPayload;
   } catch (e) {
     console.error("Failed to decode JWT:", e);
     return null;
@@ -74,7 +76,9 @@ export function extractTimestamp(message: string): [string, string] {
 /**
  * Gets the value from an input element
  */
-export function getInputValue(element: HTMLInputElement | HTMLSelectElement): string {
+export function getInputValue(
+  element: HTMLInputElement | HTMLSelectElement
+): string {
   if (element.type === "checkbox") {
     return (element as HTMLInputElement).checked ? "1" : "0";
   }

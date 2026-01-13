@@ -1,210 +1,237 @@
-import { elements } from "./dom";
+import { domManager } from "./dom";
 import { decodeJWT, hashPassword } from "./utils";
-import { saveTokenData, clearTokenData } from "./storage";
-import {
-  showAuthError,
-  clearAuthError,
-  showAdminPanel,
-  clearAuthForm,
-  setLoginButtonState,
-  updateUsernameDisplay,
-  updateTokenExpiry,
-} from "./ui";
-import type { TokenData } from "./types";
+import { storageManager } from "./storage";
+import { uiManager } from "./ui";
+import { logger } from "./logger";
+import { apiClient } from "./api";
+import type { TokenData, DOMElements } from "./types";
 
 // ============================================
-// Authentication
+// Response Types
 // ============================================
 
-let passwordSalt: string | null = null;
-let tokenExpiryTimer: number | null = null;
+interface SaltResponse {
+  salt: string;
+}
 
-/**
- * Fetches password salt from server
- */
-export async function fetchSalt(): Promise<string> {
-  try {
-    const response = await fetch("/auth/salt");
+interface LoginResponse {
+  token: string;
+  expiresIn: number;
+}
+
+// ============================================
+// Auth Service Class
+// ============================================
+
+class AuthService {
+  private passwordSalt: string | null = null;
+  private tokenExpiryTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * Gets DOM elements
+   */
+  private get el(): DOMElements {
+    return domManager.elements;
+  }
+
+  // ============================================
+  // Salt Management
+  // ============================================
+
+  /**
+   * Fetches password salt from server
+   */
+  async fetchSalt(): Promise<string> {
+    const response = await apiClient.get<SaltResponse>("/auth/salt", false);
 
     if (response.status === 503) {
       throw new Error("Admin panel is disabled");
     }
 
-    if (!response.ok) {
+    if (!response.ok || !response.data) {
       throw new Error("Failed to fetch salt");
     }
 
-    const data = await response.json();
-    return data.salt;
-  } catch (error) {
-    throw new Error(`Cannot fetch salt: ${error}`);
-  }
-}
-
-/**
- * Prefetches salt on initialization
- */
-export async function prefetchSalt(): Promise<void> {
-  try {
-    passwordSalt = await fetchSalt();
-  } catch (err) {
-    console.warn("Failed to prefetch salt:", err);
-  }
-}
-
-/**
- * Performs login
- */
-export async function login(
-  username: string,
-  password: string
-): Promise<TokenData> {
-  setLoginButtonState(true);
-
-  try {
-    // Fetch salt if not cached
-    if (!passwordSalt) {
-      passwordSalt = await fetchSalt();
-    }
-
-    // Hash password with salt
-    const passwordHash = await hashPassword(password, passwordSalt);
-
-    const response = await fetch("/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ username, passwordHash }),
-    });
-
-    if (response.status === 401) {
-      throw new Error("Invalid username or password");
-    }
-
-    if (response.status === 429) {
-      throw new Error("Too many attempts. Please try again later.");
-    }
-
-    if (response.status === 503) {
-      throw new Error("Admin panel is disabled on server");
-    }
-
-    if (!response.ok) {
-      throw new Error("Login failed. Please try again.");
-    }
-
-    const data = await response.json();
-
-    // Decode token to extract username
-    const payload = decodeJWT(data.token);
-    if (!payload || !payload.username) {
-      throw new Error("Invalid token received");
-    }
-
-    // Create token data
-    const expiresAt = Date.now() + data.expiresIn * 1000;
-    const tokenData: TokenData = {
-      token: data.token,
-      expiresAt,
-      username: payload.username,
-    };
-
-    // Save to storage
-    saveTokenData(tokenData);
-
-    // Clear form and errors
-    clearAuthError();
-    clearAuthForm();
-
-    return tokenData;
-  } finally {
-    setLoginButtonState(false);
-  }
-}
-
-/**
- * Performs logout
- */
-export function logout(onLogout: () => void): void {
-  if (tokenExpiryTimer) {
-    clearInterval(tokenExpiryTimer);
-    tokenExpiryTimer = null;
+    return response.data.salt;
   }
 
-  clearTokenData();
-  clearAuthForm();
-
-  onLogout();
-}
-
-/**
- * Initializes admin panel with token data
- */
-export function initializeAdminPanel(tokenData: TokenData): void {
-  showAdminPanel();
-  updateUsernameDisplay(tokenData.username);
-  updateTokenExpiry(tokenData);
-  startTokenExpiryCheck(tokenData);
-}
-
-/**
- * Starts token expiry check timer
- */
-function startTokenExpiryCheck(tokenData: TokenData): void {
-  if (tokenExpiryTimer) {
-    clearInterval(tokenExpiryTimer);
+  /**
+   * Prefetches salt on initialization
+   */
+  async prefetchSalt(): Promise<void> {
+    try {
+      this.passwordSalt = await this.fetchSalt();
+    } catch (err) {
+      logger.warn("Failed to prefetch salt:", err);
+    }
   }
 
-  // Update every minute
-  tokenExpiryTimer = setInterval(() => {
-    updateTokenExpiry(tokenData);
+  // ============================================
+  // Authentication
+  // ============================================
 
-    // Auto-logout if expired
-    if (tokenData.expiresAt <= Date.now()) {
-      clearInterval(tokenExpiryTimer!);
-      tokenExpiryTimer = null;
-    }
-  }, 60 * 1000) as any;
-}
-
-/**
- * Sets up authentication form handler
- */
-export function setupAuthHandler(
-  onLogin: (tokenData: TokenData) => void
-): void {
-  elements.authForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const username = elements.usernameInput.value.trim();
-    const password = elements.passwordInput.value.trim();
-
-    if (!username) {
-      showAuthError("Username is required");
-      return;
-    }
-
-    if (!password) {
-      showAuthError("Password is required");
-      return;
-    }
+  /**
+   * Performs login
+   */
+  async login(username: string, password: string): Promise<TokenData> {
+    uiManager.setLoginButtonState(true);
 
     try {
-      const tokenData = await login(username, password);
-      initializeAdminPanel(tokenData);
-      onLogin(tokenData);
-    } catch (error) {
-      showAuthError(error instanceof Error ? error.message : "Login failed");
+      // Fetch salt if not cached
+      if (!this.passwordSalt) {
+        this.passwordSalt = await this.fetchSalt();
+      }
+
+      // Hash password with salt
+      const passwordHash = await hashPassword(password, this.passwordSalt);
+
+      const response = await apiClient.post<LoginResponse>(
+        "/login",
+        { username, passwordHash },
+        false
+      );
+
+      if (response.status === 401) {
+        throw new Error("Invalid username or password");
+      }
+
+      if (response.status === 429) {
+        throw new Error("Too many attempts. Please try again later.");
+      }
+
+      if (response.status === 503) {
+        throw new Error("Admin panel is disabled on server");
+      }
+
+      if (!response.ok || !response.data) {
+        throw new Error("Login failed. Please try again.");
+      }
+
+      // Decode token to extract username
+      const payload = decodeJWT(response.data.token);
+      if (!payload || !payload.username) {
+        throw new Error("Invalid token received");
+      }
+
+      // Create token data
+      const expiresAt = Date.now() + response.data.expiresIn * 1000;
+      const tokenData: TokenData = {
+        token: response.data.token,
+        expiresAt,
+        username: payload.username,
+      };
+
+      // Save to storage and set token for API client
+      storageManager.saveTokenData(tokenData);
+      apiClient.setAuthToken(tokenData.token);
+
+      logger.info("Login successful for:", tokenData.username);
+
+      // Clear form and errors
+      uiManager.clearAuthError();
+      uiManager.clearAuthForm();
+
+      return tokenData;
+    } finally {
+      uiManager.setLoginButtonState(false);
     }
-  });
+  }
+
+  /**
+   * Performs logout
+   */
+  logout(onLogout: () => void): void {
+    if (this.tokenExpiryTimer) {
+      clearInterval(this.tokenExpiryTimer);
+      this.tokenExpiryTimer = null;
+    }
+
+    storageManager.clearTokenData();
+    apiClient.setAuthToken(null);
+    uiManager.clearAuthForm();
+
+    onLogout();
+  }
+
+  // ============================================
+  // Admin Panel
+  // ============================================
+
+  /**
+   * Initializes admin panel with token data
+   */
+  initializeAdminPanel(tokenData: TokenData): void {
+    uiManager.showAdminPanel();
+    uiManager.updateUsernameDisplay(tokenData.username);
+    uiManager.updateTokenExpiry(tokenData);
+    this.startTokenExpiryCheck(tokenData);
+  }
+
+  /**
+   * Starts token expiry check timer
+   */
+  private startTokenExpiryCheck(tokenData: TokenData): void {
+    if (this.tokenExpiryTimer) {
+      clearInterval(this.tokenExpiryTimer);
+    }
+
+    // Update every minute
+    this.tokenExpiryTimer = setInterval(() => {
+      uiManager.updateTokenExpiry(tokenData);
+
+      // Auto-logout if expired
+      if (tokenData.expiresAt <= Date.now()) {
+        clearInterval(this.tokenExpiryTimer!);
+        this.tokenExpiryTimer = null;
+      }
+    }, 60 * 1000);
+  }
+
+  // ============================================
+  // Event Handlers Setup
+  // ============================================
+
+  /**
+   * Sets up authentication form handler
+   */
+  setupAuthHandler(onLogin: (tokenData: TokenData) => void): void {
+    this.el.authForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const username = this.el.usernameInput.value.trim();
+      const password = this.el.passwordInput.value.trim();
+
+      if (!username) {
+        uiManager.showAuthError("Username is required");
+        return;
+      }
+
+      if (!password) {
+        uiManager.showAuthError("Password is required");
+        return;
+      }
+
+      try {
+        const tokenData = await this.login(username, password);
+        this.initializeAdminPanel(tokenData);
+        onLogin(tokenData);
+      } catch (error) {
+        uiManager.showAuthError(
+          error instanceof Error ? error.message : "Login failed"
+        );
+      }
+    });
+  }
+
+  /**
+   * Sets up disconnect handler
+   */
+  setupDisconnectHandler(onDisconnect: () => void): void {
+    this.el.disconnectBtn.addEventListener("click", () => {
+      this.logout(onDisconnect);
+    });
+  }
 }
 
-/**
- * Sets up disconnect handler
- */
-export function setupDisconnectHandler(onDisconnect: () => void): void {
-  elements.disconnectBtn.addEventListener("click", () => {
-    logout(onDisconnect);
-  });
-}
+// Export singleton instance
+export const authService = new AuthService();

@@ -1,42 +1,85 @@
+import type { DOMElements } from "./types";
+
 // ============================================
-// DOM Element References
+// DOM Manager Class
 // ============================================
 
-export const elements = {
-  // Containers
-  authContainer: document.getElementById("auth-container")!,
-  adminContainer: document.getElementById("admin-container")!,
-  logsContainer: document.getElementById("logs-container")!,
+class DOMManager {
+  private _elements: DOMElements | null = null;
 
-  // Auth elements
-  authForm: document.getElementById("auth-form") as HTMLFormElement,
-  authError: document.getElementById("auth-error")!,
-  usernameInput: document.getElementById("username") as HTMLInputElement,
-  passwordInput: document.getElementById("password") as HTMLInputElement,
-  loginBtn: document.getElementById("login-btn") as HTMLButtonElement,
+  /**
+   * Gets all DOM elements (lazy initialization)
+   */
+  get elements(): DOMElements {
+    if (!this._elements) {
+      this._elements = this.initializeElements();
+    }
+    return this._elements;
+  }
 
-  // Admin elements
-  disconnectBtn: document.getElementById("disconnect-btn")!,
-  commandForm: document.getElementById("command-form") as HTMLFormElement,
-  commandInput: document.getElementById("command-input") as HTMLInputElement,
+  /**
+   * Initializes all DOM element references
+   */
+  private initializeElements(): DOMElements {
+    return {
+      // Containers
+      authContainer: document.getElementById("auth-container")!,
+      adminContainer: document.getElementById("admin-container")!,
+      logsContainer: document.getElementById("logs-container")!,
 
-  // Status elements
-  connectionStatus: document.getElementById("connection-status")!,
-  connectionText: document.getElementById("connection-text")!,
-  tokenExpiry: document.getElementById("token-expiry")!,
-  usernameDisplay: document.getElementById("username-display")!,
+      // Auth elements
+      authForm: document.getElementById("auth-form") as HTMLFormElement,
+      authError: document.getElementById("auth-error")!,
+      usernameInput: document.getElementById("username") as HTMLInputElement,
+      passwordInput: document.getElementById("password") as HTMLInputElement,
+      loginBtn: document.getElementById("login-btn") as HTMLButtonElement,
 
-  // Settings form
-  gameSettingsForm: document.getElementById("game-settings") as HTMLFormElement,
-  gameSettingsCurrent: document.getElementById("game-settings-current") as HTMLButtonElement,
-  gameSettingsApply: document.getElementById("game-settings-apply") as HTMLButtonElement,
+      // Admin elements
+      disconnectBtn: document.getElementById("disconnect-btn")!,
+      commandForm: document.getElementById("command-form") as HTMLFormElement,
+      commandInput: document.getElementById(
+        "command-input"
+      ) as HTMLInputElement,
 
-  // Maps elements
-  mapsSelect: document.getElementById("maps-select") as HTMLSelectElement,
-  changelevelBtn: document.getElementById("changelevel-btn") as HTMLButtonElement,
+      // Status elements
+      connectionStatus: document.getElementById("connection-status")!,
+      connectionText: document.getElementById("connection-text")!,
+      tokenExpiry: document.getElementById("token-expiry")!,
+      usernameDisplay: document.getElementById("username-display")!,
 
-  // Settings status elements
-  settingsStatus: document.getElementById("settings-status")!,
-  settingsStatusText: document.getElementById("settings-status-text")!,
-  settingsRefreshBtn: document.getElementById("settings-refresh-btn") as HTMLButtonElement,
-};
+      // Settings form
+      gameSettingsForm: document.getElementById(
+        "game-settings"
+      ) as HTMLFormElement,
+      gameSettingsCurrent: document.getElementById(
+        "game-settings-current"
+      ) as HTMLButtonElement,
+      gameSettingsApply: document.getElementById(
+        "game-settings-apply"
+      ) as HTMLButtonElement,
+
+      // Maps elements
+      mapsSelect: document.getElementById("maps-select") as HTMLSelectElement,
+      changelevelBtn: document.getElementById(
+        "changelevel-btn"
+      ) as HTMLButtonElement,
+
+      // Settings status elements
+      settingsStatus: document.getElementById("settings-status")!,
+      settingsStatusText: document.getElementById("settings-status-text")!,
+      settingsRefreshBtn: document.getElementById(
+        "settings-refresh-btn"
+      ) as HTMLButtonElement,
+    };
+  }
+
+  /**
+   * Resets cached elements (useful for testing)
+   */
+  reset(): void {
+    this._elements = null;
+  }
+}
+
+// Export singleton instance
+export const domManager = new DOMManager();

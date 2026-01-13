@@ -1,232 +1,266 @@
-import { elements } from './dom';
-import { escapeHtml, stripAnsiCodes, extractTimestamp } from './utils';
-import type { ConnectionStatus, TokenData } from './types';
+import { domManager } from "./dom";
+import { escapeHtml, stripAnsiCodes, extractTimestamp } from "./utils";
+import type { ConnectionStatus, TokenData, DOMElements } from "./types";
 
 // ============================================
-// UI Management
+// UI Manager Class
 // ============================================
 
-let isAutoScroll = true;
+class UIManager {
+  private isAutoScroll = true;
 
-/**
- * Shows authentication error message
- */
-export function showAuthError(message: string): void {
-  elements.authError.textContent = message;
-}
-
-/**
- * Clears authentication error
- */
-export function clearAuthError(): void {
-  elements.authError.textContent = '';
-}
-
-/**
- * Shows the admin panel
- */
-export function showAdminPanel(): void {
-  elements.authContainer.style.display = 'none';
-  elements.adminContainer.style.display = 'block';
-}
-
-/**
- * Shows the authentication panel
- */
-export function showAuthPanel(): void {
-  elements.authContainer.style.display = 'flex';
-  elements.adminContainer.style.display = 'none';
-}
-
-/**
- * Updates username display
- */
-export function updateUsernameDisplay(username: string): void {
-  elements.usernameDisplay.textContent = `Logged in as: ${username}`;
-}
-
-/**
- * Updates token expiry display
- */
-export function updateTokenExpiry(tokenData: TokenData | null): void {
-  if (!tokenData) return;
-
-  const now = Date.now();
-  const remaining = tokenData.expiresAt - now;
-
-  if (remaining <= 0) {
-    elements.tokenExpiry.textContent = 'Token expired';
-    elements.tokenExpiry.style.color = '#e74c3c';
-    return;
+  /**
+   * Gets DOM elements
+   */
+  private get el(): DOMElements {
+    return domManager.elements;
   }
 
-  const hours = Math.floor(remaining / (1000 * 60 * 60));
-  const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+  // ============================================
+  // Authentication UI
+  // ============================================
 
-  if (hours > 0) {
-    elements.tokenExpiry.textContent = `Token expires in ${hours}h ${minutes}m`;
-  } else {
-    elements.tokenExpiry.textContent = `Token expires in ${minutes}m`;
+  /**
+   * Shows authentication error message
+   */
+  showAuthError(message: string): void {
+    this.el.authError.textContent = message;
   }
 
-  // Warn if less than 5 minutes
-  if (remaining < 5 * 60 * 1000) {
-    elements.tokenExpiry.style.color = '#e74c3c';
-  } else {
-    elements.tokenExpiry.style.color = '#27ae60';
-  }
-}
-
-/**
- * Updates WebSocket connection status display
- */
-export function updateConnectionStatus(
-  status: ConnectionStatus,
-  text: string
-): void {
-  elements.connectionStatus.className = 'status-dot';
-  elements.connectionStatus.classList.add(status);
-  elements.connectionText.textContent = text;
-}
-
-/**
- * Adds a log entry to the logs container
- */
-export function addLog(timestamp: string, message: string): void {
-  const logEntry = document.createElement('div');
-  logEntry.className = 'log-entry';
-
-  // Clean message
-  let cleanMessage = stripAnsiCodes(message);
-
-  // Extract timestamp
-  let time: string;
-  const [extractedTime, extractedMessage] = extractTimestamp(cleanMessage);
-
-  if (extractedTime) {
-    time = extractedTime;
-    cleanMessage = extractedMessage;
-  } else if (timestamp === 'System') {
-    time = `[${new Date().toLocaleTimeString()}]`;
-  } else {
-    time = `[${new Date(timestamp).toLocaleTimeString()}]`;
+  /**
+   * Clears authentication error
+   */
+  clearAuthError(): void {
+    this.el.authError.textContent = "";
   }
 
-  logEntry.innerHTML = `
-    <span class="log-timestamp">${time}</span>
-    <span class="log-message">${escapeHtml(cleanMessage)}</span>
-  `;
-
-  elements.logsContainer.appendChild(logEntry);
-
-  // Auto-scroll to bottom if enabled
-  if (isAutoScroll) {
-    elements.logsContainer.scrollTop = elements.logsContainer.scrollHeight;
-  }
-}
-
-/**
- * Clears all logs
- */
-export function clearLogs(): void {
-  elements.logsContainer.innerHTML = '';
-}
-
-/**
- * Clears authentication form inputs
- */
-export function clearAuthForm(): void {
-  elements.usernameInput.value = '';
-  elements.passwordInput.value = '';
-}
-
-/**
- * Sets up auto-scroll detection
- */
-export function setupAutoScroll(): void {
-  elements.logsContainer.addEventListener('scroll', () => {
-    const { scrollTop, scrollHeight, clientHeight } = elements.logsContainer;
-    isAutoScroll = scrollTop + clientHeight >= scrollHeight - 10;
-  });
-}
-
-/**
- * Sets login button state
- */
-export function setLoginButtonState(loading: boolean): void {
-  elements.loginBtn.disabled = loading;
-  elements.loginBtn.textContent = loading ? 'Logging in...' : 'Login';
-}
-
-/**
- * Updates the maps list select
- */
-export function updateMapsList(maps: string[]): void {
-  const mapsSelect = document.getElementById("maps-select") as HTMLSelectElement;
-  const changelevelBtn = document.getElementById("changelevel-btn") as HTMLButtonElement;
-
-  if (!mapsSelect) return;
-
-  if (maps.length === 0) {
-    mapsSelect.innerHTML = '<option disabled>No maps found. Run "maps *" to list.</option>';
-    mapsSelect.disabled = true;
-    if (changelevelBtn) changelevelBtn.disabled = true;
-    return;
+  /**
+   * Shows the admin panel
+   */
+  showAdminPanel(): void {
+    this.el.authContainer.style.display = "none";
+    this.el.adminContainer.style.display = "block";
   }
 
-  mapsSelect.innerHTML = maps
-    .map((map) => `<option value="${map}">${map}</option>`)
-    .join("");
-  mapsSelect.disabled = false;
-  if (changelevelBtn) changelevelBtn.disabled = false;
-}
+  /**
+   * Shows the authentication panel
+   */
+  showAuthPanel(): void {
+    this.el.authContainer.style.display = "flex";
+    this.el.adminContainer.style.display = "none";
+  }
 
-/**
- * Shows the settings loading state
- */
-export function showSettingsLoading(): void {
-  elements.settingsStatus.style.display = 'flex';
-  elements.settingsStatusText.textContent = 'Fetching settings...';
-  elements.settingsStatusText.style.display = 'block';
-  elements.settingsRefreshBtn.style.display = 'none';
-  elements.gameSettingsForm.style.display = 'none';
-}
+  /**
+   * Clears authentication form inputs
+   */
+  clearAuthForm(): void {
+    this.el.usernameInput.value = "";
+    this.el.passwordInput.value = "";
+  }
 
-/**
- * Shows the settings form
- */
-export function showSettingsForm(): void {
-  elements.settingsStatus.style.display = 'none';
-  elements.gameSettingsForm.style.display = 'block';
-}
+  /**
+   * Sets login button state
+   */
+  setLoginButtonState(loading: boolean): void {
+    this.el.loginBtn.disabled = loading;
+    this.el.loginBtn.textContent = loading ? "Logging in..." : "Login";
+  }
 
-/**
- * Shows the refresh button after timeout
- */
-export function showSettingsRefreshButton(): void {
-  elements.settingsStatusText.textContent = 'Failed to load settings';
-  elements.settingsRefreshBtn.style.display = 'block';
-}
+  // ============================================
+  // User Display
+  // ============================================
 
-/**
- * Hides a settings row by field name
- */
-export function hideSettingRow(fieldName: string): void {
-  const input = document.querySelector<HTMLInputElement | HTMLSelectElement>(
-    `#game-settings [name="${fieldName}"]`
-  );
-  if (input) {
-    const row = input.closest('.row');
-    if (row) {
-      row.classList.add('hidden');
+  /**
+   * Updates username display
+   */
+  updateUsernameDisplay(username: string): void {
+    this.el.usernameDisplay.textContent = `Logged in as: ${username}`;
+  }
+
+  /**
+   * Updates token expiry display
+   */
+  updateTokenExpiry(tokenData: TokenData | null): void {
+    if (!tokenData) return;
+
+    const now = Date.now();
+    const remaining = tokenData.expiresAt - now;
+
+    if (remaining <= 0) {
+      this.el.tokenExpiry.textContent = "Token expired";
+      this.el.tokenExpiry.style.color = "var(--token-expiring)";
+      return;
+    }
+
+    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 0) {
+      this.el.tokenExpiry.textContent = `Token expires in ${hours}h ${minutes}m`;
+    } else {
+      this.el.tokenExpiry.textContent = `Token expires in ${minutes}m`;
+    }
+
+    // Warn if less than 5 minutes
+    if (remaining < 5 * 60 * 1000) {
+      this.el.tokenExpiry.style.color = "var(--token-expiring)";
+    } else {
+      this.el.tokenExpiry.style.color = "var(--token-valid)";
     }
   }
+
+  // ============================================
+  // Connection Status
+  // ============================================
+
+  /**
+   * Updates WebSocket connection status display
+   */
+  updateConnectionStatus(status: ConnectionStatus, text: string): void {
+    this.el.connectionStatus.className = "status-dot";
+    this.el.connectionStatus.classList.add(status);
+    this.el.connectionText.textContent = text;
+  }
+
+  // ============================================
+  // Logs
+  // ============================================
+
+  /**
+   * Adds a log entry to the logs container
+   */
+  addLog(timestamp: string, message: string): void {
+    const logEntry = document.createElement("div");
+    logEntry.className = "log-entry";
+
+    // Clean message
+    let cleanMessage = stripAnsiCodes(message);
+
+    // Extract timestamp
+    let time: string;
+    const [extractedTime, extractedMessage] = extractTimestamp(cleanMessage);
+
+    if (extractedTime) {
+      time = extractedTime;
+      cleanMessage = extractedMessage;
+    } else if (timestamp === "System") {
+      time = `[${new Date().toLocaleTimeString()}]`;
+    } else {
+      time = `[${new Date(timestamp).toLocaleTimeString()}]`;
+    }
+
+    logEntry.innerHTML = `
+      <span class="log-timestamp">${time}</span>
+      <span class="log-message">${escapeHtml(cleanMessage)}</span>
+    `;
+
+    this.el.logsContainer.appendChild(logEntry);
+
+    // Auto-scroll to bottom if enabled
+    if (this.isAutoScroll) {
+      this.el.logsContainer.scrollTop = this.el.logsContainer.scrollHeight;
+    }
+  }
+
+  /**
+   * Clears all logs
+   */
+  clearLogs(): void {
+    this.el.logsContainer.innerHTML = "";
+  }
+
+  /**
+   * Sets up auto-scroll detection
+   */
+  setupAutoScroll(): void {
+    this.el.logsContainer.addEventListener("scroll", () => {
+      const { scrollTop, scrollHeight, clientHeight } = this.el.logsContainer;
+      this.isAutoScroll = scrollTop + clientHeight >= scrollHeight - 10;
+    });
+  }
+
+  // ============================================
+  // Maps
+  // ============================================
+
+  /**
+   * Updates the maps list select
+   */
+  updateMapsList(maps: string[]): void {
+    const mapsSelect = this.el.mapsSelect;
+    const changelevelBtn = this.el.changelevelBtn;
+
+    if (!mapsSelect) return;
+
+    if (maps.length === 0) {
+      mapsSelect.innerHTML =
+        '<option disabled>No maps found. Run "maps *" to list.</option>';
+      mapsSelect.disabled = true;
+      if (changelevelBtn) changelevelBtn.disabled = true;
+      return;
+    }
+
+    mapsSelect.innerHTML = maps
+      .map((map) => `<option value="${map}">${map}</option>`)
+      .join("");
+    mapsSelect.disabled = false;
+    if (changelevelBtn) changelevelBtn.disabled = false;
+  }
+
+  // ============================================
+  // Settings
+  // ============================================
+
+  /**
+   * Shows the settings loading state
+   */
+  showSettingsLoading(): void {
+    this.el.settingsStatus.style.display = "flex";
+    this.el.settingsStatusText.textContent = "Fetching settings...";
+    this.el.settingsStatusText.style.display = "block";
+    this.el.settingsRefreshBtn.style.display = "none";
+    this.el.gameSettingsForm.style.display = "none";
+  }
+
+  /**
+   * Shows the settings form
+   */
+  showSettingsForm(): void {
+    this.el.settingsStatus.style.display = "none";
+    this.el.gameSettingsForm.style.display = "block";
+  }
+
+  /**
+   * Shows the refresh button after timeout
+   */
+  showSettingsRefreshButton(): void {
+    this.el.settingsStatusText.textContent = "Failed to load settings";
+    this.el.settingsRefreshBtn.style.display = "block";
+  }
+
+  /**
+   * Hides a settings row by field name
+   */
+  hideSettingRow(fieldName: string): void {
+    const input = document.querySelector<HTMLInputElement | HTMLSelectElement>(
+      `#game-settings [name="${fieldName}"]`
+    );
+    if (input) {
+      const row = input.closest(".row");
+      if (row) {
+        row.classList.add("hidden");
+      }
+    }
+  }
+
+  /**
+   * Shows all settings rows (removes hidden class)
+   */
+  showAllSettingRows(): void {
+    const rows = document.querySelectorAll("#game-settings .row");
+    rows.forEach((row) => row.classList.remove("hidden"));
+  }
 }
 
-/**
- * Shows all settings rows (removes hidden class)
- */
-export function showAllSettingRows(): void {
-  const rows = document.querySelectorAll('#game-settings .row');
-  rows.forEach(row => row.classList.remove('hidden'));
-}
+// Export singleton instance
+export const uiManager = new UIManager();
