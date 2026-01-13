@@ -217,8 +217,8 @@ class CommandService {
       const value = getInputValue(element);
       const originalValue = this.originalSettings.get(element.name);
 
-      // Only send if value changed or if we don't have original value
-      if (originalValue === undefined || originalValue !== value) {
+      // Only send if we have original value and it changed
+      if (originalValue !== undefined && originalValue !== value) {
         await this.sendCommand(`${element.name} "${value.replace(/"/g, " ")}"`);
         changedCount++;
       }
