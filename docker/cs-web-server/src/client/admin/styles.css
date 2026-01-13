@@ -24,7 +24,7 @@
 
 body {
   min-height: 100vh;
-  padding: 2rem;
+  padding: 32px;
 }
 
 body::before {
@@ -69,14 +69,14 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 4rem);
+  min-height: calc(100vh - 64px);
 }
 
 .desktop {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding-bottom: 2rem;
+  gap: 16px;
+  padding-bottom: 32px;
 }
 
 /* Panel windows (CS 1.6 dialog style) */
@@ -91,7 +91,7 @@ body::before {
 }
 
 .panel-window .heading .text {
-  letter-spacing: 0.05em;
+  letter-spacing: 1px;
   text-transform: uppercase;
 }
 
@@ -124,8 +124,8 @@ body::before {
 .auth-window h1 {
   margin-bottom: 4px;
   color: var(--accent);
-  font-size: 1rem;
-  letter-spacing: 0.05em;
+  font-size: 16px;
+  letter-spacing: 1px;
   text-transform: uppercase;
 }
 
@@ -144,21 +144,21 @@ body::before {
 }
 
 .error {
-  min-height: 1rem;
+  min-height: 16px;
   color: var(--error-light);
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
+  font-size: 14px;
+  letter-spacing: 1px;
 }
 
 /* Admin header */
 .admin-header {
-  margin-bottom: 1rem;
+  margin-bottom: 16px;
 }
 
 .admin-header h1 {
   color: var(--text);
-  font-size: 1rem;
-  letter-spacing: 0.05em;
+  font-size: 16px;
+  letter-spacing: 1px;
   text-transform: uppercase;
 }
 
@@ -167,15 +167,15 @@ body::before {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 16px;
   padding: 15px 10px;
 }
 
 .session-copy .subtitle {
   margin-top: 2px;
   color: var(--text-3);
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
+  font-size: 14px;
+  letter-spacing: 1px;
 }
 
 .header-controls {
@@ -192,9 +192,9 @@ body::before {
     var(--border-dark);
   padding: 4px 8px 3px;
   background-color: var(--secondary-bg);
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
-  line-height: 0.9375rem;
+  font-size: 14px;
+  letter-spacing: 1px;
+  line-height: 15px;
 }
 
 .token-info {
@@ -205,7 +205,7 @@ body::before {
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 1rem;
+  gap: 16px;
 }
 
 @media (max-width: 1100px) {
@@ -225,9 +225,9 @@ body::before {
 .section-header h2,
 .command-window h2 {
   color: var(--text-3);
-  font-size: 0.85rem;
-  letter-spacing: 0.05em;
-  line-height: 0.9375rem;
+  font-size: 14px;
+  letter-spacing: 1px;
+  line-height: 15px;
   text-transform: uppercase;
 }
 
@@ -235,9 +235,9 @@ body::before {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.8rem;
-  letter-spacing: 0.05em;
-  line-height: 0.9375rem;
+  font-size: 13px;
+  letter-spacing: 1px;
+  line-height: 15px;
 }
 
 .status-dot {
@@ -266,7 +266,7 @@ body::before {
   background: var(--secondary-bg);
   color: var(--secondary-text);
   font-family: "Lucida Console", "Courier New", monospace;
-  font-size: 0.85rem;
+  font-size: 14px;
   line-height: 1.4;
   overflow-y: auto;
 }
@@ -319,7 +319,7 @@ body::before {
 
 @media (max-width: 768px) {
   body {
-    padding: 1rem;
+    padding: 16px;
   }
 
   #command-form {
@@ -346,7 +346,7 @@ body::before {
   border-color: var(--border-dark) var(--border-light) var(--border-light)
     var(--border-dark);
   padding: 8px;
-  font-size: 0.85rem;
+  font-size: 14px;
   overflow-y: auto;
 }
 
@@ -366,7 +366,7 @@ body::before {
 .settings-grid .col {
   align-self: center;
   padding: 0;
-  font-size: 0.9rem;
+  font-size: 14px;
   text-align: left;
 }
 
@@ -392,7 +392,7 @@ body::before {
 }
 
 .settings-status p {
-  letter-spacing: 0.05em;
+  letter-spacing: 1px;
 }
 
 /* Ocultar linhas de campos que não receberam dados */
