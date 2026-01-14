@@ -4,6 +4,18 @@
  * This file extends cs16.css with admin panel specific layouts and features
   */
 
+/* Override cs16.css base font and sizes */
+body {
+  font-family: Arial, Helvetica, sans-serif;
+}
+.cs-dialog .heading .wrapper .text,
+.cs-btn,
+.cs-tabs .label,
+.cs-input,
+.cs-select {
+  font-size: 12px;
+}
+
 :root {
   /* Extended palette for admin panel */
   --success: #27ae60;
@@ -124,7 +136,7 @@ body::before {
 .auth-window h1 {
   margin-bottom: 4px;
   color: var(--accent);
-  font-size: 16px;
+  font-size: 12px;
   letter-spacing: 1px;
   text-transform: uppercase;
 }
@@ -157,7 +169,7 @@ body::before {
 
 .admin-header h1 {
   color: var(--text);
-  font-size: 16px;
+  font-size: 12px;
   letter-spacing: 1px;
   text-transform: uppercase;
 }
@@ -174,7 +186,7 @@ body::before {
 .session-copy .subtitle {
   margin-top: 2px;
   color: var(--text-3);
-  font-size: 14px;
+  font-size: 12px;
   letter-spacing: 1px;
 }
 
@@ -192,7 +204,7 @@ body::before {
     var(--border-dark);
   padding: 4px 8px 3px;
   background-color: var(--secondary-bg);
-  font-size: 14px;
+  font-size: 11px;
   letter-spacing: 1px;
   line-height: 15px;
 }
@@ -225,7 +237,7 @@ body::before {
 .section-header h2,
 .command-window h2 {
   color: var(--text-3);
-  font-size: 14px;
+  font-size: 12px;
   letter-spacing: 1px;
   line-height: 15px;
   text-transform: uppercase;
@@ -235,7 +247,7 @@ body::before {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 10px;
   letter-spacing: 1px;
   line-height: 15px;
 }
@@ -366,7 +378,7 @@ body::before {
 .settings-grid .col {
   align-self: center;
   padding: 0;
-  font-size: 14px;
+  font-size: 12px;
   text-align: left;
 }
 
@@ -398,4 +410,39 @@ body::before {
 /* Ocultar linhas de campos que não receberam dados */
 .settings-grid .row.hidden {
   display: none !important;
+}
+
+/* Language Selector */
+.language-selector-container {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1000;
+}
+
+.language-selector-container.auth-page {
+  position: fixed;
+}
+
+.language-selector {
+  min-width: 180px;
+  font-size: 10px;
+  padding: 4px 20px 4px 6px;
+  background-size: 6px auto;
+  background-position: right 5px top 50%;
+}
+
+.language-selector option {
+  padding: 4px;
+}
+
+/* Admin header language selector */
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-controls .language-selector {
+  min-width: 150px;
 }
