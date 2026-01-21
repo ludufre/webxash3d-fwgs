@@ -128,7 +128,11 @@ COPY --from=hlds /opt/xash/xashds .
 COPY --from=go /go/xash ./xash
 COPY --from=client /client/docker/cs-web-server/src/client/dist ./public
 COPY --from=wasm /client/node_modules/cs16-client/dist/cstrike/ ./public/cstrike
-COPY --from=wasm /client/node_modules/xash3d-fwgs/dist/filesystem_stdio.wasm ./public/filesystem_stdio.wasm
+
+# Use locally built WASM files from packages/xash3d-fwgs/dist
+COPY --from=client /client/packages/xash3d-fwgs/dist/filesystem_stdio.wasm ./public/filesystem_stdio.wasm
+
+# Copy extracted assets and manifest for lazy loading
 COPY --from=engine /xash/build/filesystem/filesystem_stdio.so ./filesystem_stdio.so
 COPY --from=engine "/usr/lib/i386-linux-gnu/libstdc++.so.6" "./libstdc++.so.6"
 COPY --from=engine "/usr/lib/i386-linux-gnu/libgcc_s.so.1" "./libgcc_s.so.1"
@@ -136,7 +140,7 @@ EXPOSE 27015/udp
 
 # Engine configuration
 ENV GAME_DIR="cstrike"
-ENV ENGINE_ARGS="-windowed,-game,cstrike"
+ENV ENGINE_ARGS="-windowed,-game,cstrike,-console"
 ENV ENGINE_CONSOLE="_vgui_menus 0"
 
 # Library paths
