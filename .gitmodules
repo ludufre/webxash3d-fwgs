@@ -6,5 +6,5 @@
 	url = https://github.com/yohimik/hlsdk-portable.git
 [submodule "packages/xash3d-fwgs/xash3d-fwgs"]
 	path = packages/xash3d-fwgs/xash3d-fwgs
-	url = https://github.com/yohimik/xash3d-fwgs
-	branch = merged
+	url = https://github.com/ludufre/xash3d-fwgs
+	branch = feat-eagain
