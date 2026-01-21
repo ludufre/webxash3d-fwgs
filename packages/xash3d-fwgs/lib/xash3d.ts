@@ -10,6 +10,7 @@ import {
     DEFAULT_SOFT_LIBRARY,
     DEFAULT_XASH_LIBRARY
 } from './constants'
+import {Manifest, ManifestManager} from './manifest'
 
 /**
  * Rendering library override options.
@@ -38,6 +39,16 @@ export type LibrariesOptions = {
 export type Xash3DRenderer = 'gl4es' | 'gles3compat' | 'soft'
 
 /**
+ * File to preload before engine initialization.
+ */
+export type PreloadFile = {
+    /** Path in the virtual filesystem (e.g., "/rodir/cstrike/liblist.gam") */
+    path: string;
+    /** File content */
+    data: Uint8Array;
+}
+
+/**
  * Options for configuring a Xash3D instance.
  */
 export type Xash3DOptions = {
@@ -48,6 +59,10 @@ export type Xash3DOptions = {
     libraries?: LibrariesOptions
     dynamicLibraries?: string[]
     module?: Partial<Module>
+    /** URL to manifest file for lazy loading, or a manifest object */
+    manifest?: string | Manifest
+    /** Files to write before engine initialization (for lazy loading essential files) */
+    preloadFiles?: PreloadFile[]
 }
 
 /**
@@ -87,6 +102,9 @@ export class Xash3D {
 
     /** Optional networking backend */
     net?: EmNet
+
+    /** Manifest manager for lazy loading */
+    manifest?: ManifestManager
 
     private _exited = false
 
@@ -323,6 +341,16 @@ export class Xash3D {
             this.opts.arguments = []
         }
 
+        // Initialize manifest manager for lazy loading
+        if (this.opts.manifest) {
+            this.manifest = new ManifestManager()
+            if (typeof this.opts.manifest === 'string') {
+                await this.manifest.loadManifest(this.opts.manifest)
+            } else {
+                this.manifest.loadManifestData(this.opts.manifest)
+            }
+        }
+
         // Map core libraries to filesMap if overrides provided
         this.initLibrary('filesystem', DEFAULT_FILESYSTEM_LIBRARY)
         this.initLibrary('client', DEFAULT_CLIENT_LIBRARY)
@@ -346,12 +374,17 @@ export class Xash3D {
             ...this.opts.dynamicLibraries,
         ]
 
-        // Initialize the WASM module with configured options and hooks
-        this.em = await Xash({
+        // Prepare preRun to write preloaded files before engine initialization
+        const preloadFiles = this.opts.preloadFiles || []
+        const userPreRun = this.opts.module?.preRun || []
+
+        // Create module config object that we can reference from preRun
+        // Emscripten attaches FS to this object during initialization
+        const moduleConfig: Partial<Module> & { FS?: Em['FS'], preRun?: Array<() => void> } = {
             canvas,
             dynamicLibraries,
             net: this.net,
-            locateFile: path => this.locateFile(path),
+            locateFile: (path: string) => this.locateFile(path),
             arguments: args,
             ...(this.opts.module ?? {}),
             print: (log: string) => {
@@ -362,7 +395,51 @@ export class Xash3D {
                 this.invokeWaitLogs(log)
                 this.opts.module?.printErr?.(log)
             },
-        })
+            callbacks: {
+                ...this.opts.module?.callbacks,
+                // Lazy loading callbacks
+                fileExistsInManifest: this.manifest
+                    ? (data: {path: string}) => {
+                        return this.manifest!.has(data.path)
+                    }
+                    : undefined,
+                fetchFile: this.manifest
+                    ? (data: {path: string}) => {
+                        this.handleFetchFile(data.path)
+                    }
+                    : undefined,
+            },
+        }
+
+        // Add preRun that accesses FS via moduleConfig reference
+        moduleConfig.preRun = [
+            // Write preloaded files first
+            () => {
+                const FS = moduleConfig.FS
+                if (!FS) {
+                    console.error('[Xash3D] FS not available in preRun')
+                    return
+                }
+                for (const file of preloadFiles) {
+                    // Create directory structure
+                    const dirPath = file.path.substring(0, file.path.lastIndexOf('/'))
+                    if (dirPath) {
+                        try {
+                            FS.mkdirTree(dirPath)
+                        } catch (e) {
+                            // Directory may already exist
+                        }
+                    }
+                    // Write the file
+                    FS.writeFile(file.path, file.data)
+                }
+            },
+            // Then run user-provided preRun hooks
+            ...(Array.isArray(userPreRun) ? userPreRun : [userPreRun]),
+        ]
+
+        // Initialize the WASM module with configured options and hooks
+        this.em = await Xash(moduleConfig as Partial<Module>)
 
         // Initialize networking backend if present
         if (this.net) {
@@ -371,5 +448,64 @@ export class Xash3D {
 
         // Create a writable directory in the virtual filesystem
         this.em.FS.mkdir('/rwdir')
+    }
+
+    /**
+     * Handle a lazy file fetch request from the engine.
+     * Downloads the file and writes it to the virtual filesystem.
+     * @param path - File path requested by the engine
+     */
+    private async handleFetchFile(path: string) {
+        console.log(`[Xash3D] handleFetchFile('${path}')`)
+        if (!this.manifest || !this.em) {
+            console.error('[Xash3D] handleFetchFile called without manifest or em')
+            return
+        }
+
+        try {
+            // Fetch the file
+            const data = await this.manifest.fetchFile(path)
+
+            // Determine the full path in the virtual filesystem
+            const fullPath = this.manifest.getFullPath(path)
+            console.log(`[Xash3D] handleFetchFile: Writing to '${fullPath}' (${data.length} bytes)`)
+
+            // Create directories if needed
+            const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'))
+            if (dirPath) {
+                try {
+                    this.em.FS.mkdirTree(dirPath)
+                } catch (e) {
+                    // Directory may already exist
+                }
+            }
+
+            // Write the file to the virtual filesystem
+            this.em.FS.writeFile(fullPath, data)
+            console.log(`[Xash3D] handleFetchFile: File written, notifying engine with path='${path}'`)
+
+            // Notify the engine that the file download is complete
+            // Use the original path (not fullPath) to match the pending file record
+            if (this.em.Module?.ccall) {
+                this.em.Module.ccall(
+                    'Engine_FileDownloadComplete',
+                    null,
+                    ['string', 'number'],
+                    [path, 1]
+                )
+            }
+        } catch (error) {
+            console.error(`[Xash3D] Failed to lazy load: ${path}`, error)
+
+            // Notify engine of failure with original path
+            if (this.em?.Module?.ccall) {
+                this.em.Module.ccall(
+                    'Engine_FileDownloadComplete',
+                    null,
+                    ['string', 'number'],
+                    [path, 0]
+                )
+            }
+        }
     }
 }

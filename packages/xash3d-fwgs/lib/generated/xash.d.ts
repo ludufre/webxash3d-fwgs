@@ -36,6 +36,11 @@ declare type DNS = {
 export type ModuleCallbacks = {
     gameReady?: () => void
     syncFS?: (data: {path: string, op: string}) => void
+    fsSyncRequired?: (data: {path: string, op: string}) => void
+    /** Check if a file exists in the lazy-loading manifest */
+    fileExistsInManifest?: (data: {path: string}) => boolean
+    /** Request to fetch a file for lazy loading */
+    fetchFile?: (data: {path: string}) => void
 }
 
 export type Module = {

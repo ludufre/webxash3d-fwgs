@@ -9,11 +9,13 @@ services:
         - yohimik/cs-web-server:${TAG}
     restart: always
     platform: linux/386
+    user: "0:0"
     environment:
       PORT: 27018
       IP: 192.168.50.123
     volumes:
-      - "./valve.zip:/xashds/public/valve.zip"
+      - "./valve:/xashds/public/assets/assets"
+      - "./manifest.json:/xashds/public/manifest.json"
     ports:
       - "27016:27016"
       - "27018:27018"
