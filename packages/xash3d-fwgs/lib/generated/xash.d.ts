@@ -36,6 +36,7 @@ declare type DNS = {
 export type ModuleCallbacks = {
     gameReady?: () => void
     syncFS?: (data: {path: string, op: string}) => void
+    fsSyncRequired?: (data: {path: string, op: string}) => void
 }
 
 export type Module = {
@@ -85,6 +86,7 @@ export type Em = {
     readSockaddr: (saPtr: number, saLen: number) => Sockaddr
     AsciiToString: (ptr: number) => string
     _malloc: (size: number) => number
+    _free: (ptr: number) => void
     addRunDependency: (id: string) => void
     removeRunDependency: (id: string) => void
 }

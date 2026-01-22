@@ -58,6 +58,8 @@ async function main() {
             readSockaddr,
             AsciiToString,
             _malloc,
+            _free,
+            ___errno_location,
             addRunDependency,
             removeRunDependency,
             start: () => {

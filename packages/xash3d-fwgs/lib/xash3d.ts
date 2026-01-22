@@ -51,23 +51,13 @@ export type Xash3DOptions = {
 }
 
 /**
- * Reads errno from the WASM runtime.
+ * Returns the pointer to errno location in WASM memory.
+ * Use with setValue() to set errno value.
  * @param em - Emscripten interface
- * @returns errno value or 0 if unavailable
+ * @returns Pointer to errno location, or 0 if unavailable
  */
-export function ErrNoLocation(em?: Em) {
-    // Call WASM function to get pointer to errno location
-    const ptr = em?.Module.ccall(
-        'getErrnoLocation',
-        'number',
-        [],
-        []
-    ) as number;
-
-    if (!ptr) return 0;
-
-    // Read errno integer value from the pointer
-    return em!.getValue(ptr, 'i32');
+export function ErrNoLocation(em?: Em): number {
+    return em?.___errno_location?.() ?? 0;
 }
 
 type WaitLog = {

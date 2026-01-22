@@ -106,4 +106,50 @@ export interface EmNet {
      * @returns 0 on success or error code
      */
     getaddrinfo(hostnamePtr: number, restrictPrt: number, hintsPtr: number, addrinfoPtr: number): number
+
+    /**
+     * Free address info structure allocated by getaddrinfo.
+     * @param addrinfoPtr - Pointer to addrinfo structure to free
+     */
+    freeaddrinfo(addrinfoPtr: number): void
+
+    /**
+     * Connect a socket to a remote address (TCP).
+     * @param fd - Socket file descriptor
+     * @param sockaddrPtr - Pointer to sockaddr structure
+     * @param socklenPtr - Size of sockaddr structure
+     * @returns 0 on success or error code
+     */
+    connect(fd: number, sockaddrPtr: number, socklenPtr: number): number
+
+    /**
+     * Send data on a connected socket (TCP).
+     * @param fd - Socket file descriptor
+     * @param bufPtr - Pointer to buffer with data
+     * @param bufLen - Length of data
+     * @param flags - Socket flags
+     * @returns Number of bytes sent or error code
+     */
+    send(fd: number, bufPtr: number, bufLen: number, flags: number): number
+
+    /**
+     * Receive data from a connected socket (TCP).
+     * @param fd - Socket file descriptor
+     * @param bufPtr - Pointer to buffer for received data
+     * @param bufLen - Maximum buffer length
+     * @param flags - Socket flags
+     * @returns Number of bytes received or error code
+     */
+    recv(fd: number, bufPtr: number, bufLen: number, flags: number): number
+
+    /**
+     * Wait for activity on sockets.
+     * @param nfds - Highest socket fd + 1
+     * @param readfdsPtr - Pointer to read fd set
+     * @param writefdsPtr - Pointer to write fd set
+     * @param exceptfdsPtr - Pointer to exception fd set
+     * @param timeoutPtr - Pointer to timeout structure
+     * @returns Number of ready fds or error code
+     */
+    select(nfds: number, readfdsPtr: number, writefdsPtr: number, exceptfdsPtr: number, timeoutPtr: number): number
 }
