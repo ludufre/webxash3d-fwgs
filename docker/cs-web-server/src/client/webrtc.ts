@@ -1,4 +1,6 @@
 import {Net, Packet, Xash3D, Xash3DOptions} from "xash3d-fwgs";
+import { domManager } from "./dom";
+import { hasFatalError } from "./ui";
 
 // WebSocket event version constants
 const EVENT_VERSION = 'v1';
@@ -102,7 +104,9 @@ export class Xash3DWebRTC extends Xash3D {
                             clearTimeout(this.timeout)
                             this.timeout = undefined
                         }
-                        document.getElementById('warning')!.style.opacity = '0'
+                        if (!hasFatalError()) {
+                            domManager.elements.warning.style.display = 'none'
+                        }
                         r()
                     }
                 }
@@ -182,7 +186,9 @@ export class Xash3DWebRTC extends Xash3D {
             if (!this.stream) {
                 this.timeout = setTimeout(() => {
                     this.timeout = undefined
-                    document.getElementById('warning')!.style.opacity = '1'
+                    if (!hasFatalError()) {
+                        domManager.elements.warning.style.display = 'block'
+                    }
                 }, 10000)
             }
         }
