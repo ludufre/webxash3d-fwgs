@@ -1,7 +1,7 @@
 import { logger } from "./logger";
 
 // ============================================
-// API Client Class
+// API Client Types
 // ============================================
 
 export interface ApiResponse<T = unknown> {
@@ -11,14 +11,39 @@ export interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+export interface ApiClientOptions {
+  authToken?: string | null;
+  baseUrl?: string;
+}
+
+interface RequestOptions {
+  body?: unknown;
+  includeAuth?: boolean;
+}
+
+// ============================================
+// API Client Class
+// ============================================
+
 class ApiClient {
-  private authToken: string | null = null;
+  private options: ApiClientOptions;
+
+  constructor(options: ApiClientOptions = {}) {
+    this.options = options;
+  }
+
+  /**
+   * Sets/updates the client options
+   */
+  setOptions(options: Partial<ApiClientOptions>): void {
+    this.options = { ...this.options, ...options };
+  }
 
   /**
    * Sets the authentication token for requests
    */
   setAuthToken(token: string | null): void {
-    this.authToken = token;
+    this.options.authToken = token;
   }
 
   /**
@@ -29,11 +54,36 @@ class ApiClient {
       "Content-Type": "application/json",
     };
 
-    if (includeAuth && this.authToken) {
-      headers["Authorization"] = `Bearer ${this.authToken}`;
+    if (includeAuth && this.options.authToken) {
+      headers["Authorization"] = `Bearer ${this.options.authToken}`;
     }
 
     return headers;
+  }
+
+  /**
+   * Common request method for all HTTP methods
+   */
+  private async request<T = unknown>(
+    method: "GET" | "POST" | "PUT" | "DELETE",
+    url: string,
+    options: RequestOptions = {}
+  ): Promise<ApiResponse<T>> {
+    const { body, includeAuth = true } = options;
+
+    try {
+      const fullUrl = this.options.baseUrl ? `${this.options.baseUrl}${url}` : url;
+
+      const response = await fetch(fullUrl, {
+        method,
+        headers: this.getHeaders(includeAuth),
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+      return this.handleResponse<T>(response);
+    } catch (error) {
+      return this.handleError(error);
+    }
   }
 
   /**
@@ -43,16 +93,7 @@ class ApiClient {
     url: string,
     includeAuth: boolean = true
   ): Promise<ApiResponse<T>> {
-    try {
-      const response = await fetch(url, {
-        method: "GET",
-        headers: this.getHeaders(includeAuth),
-      });
-
-      return this.handleResponse<T>(response);
-    } catch (error) {
-      return this.handleError(error);
-    }
+    return this.request<T>("GET", url, { includeAuth });
   }
 
   /**
@@ -63,50 +104,28 @@ class ApiClient {
     body?: unknown,
     includeAuth: boolean = true
   ): Promise<ApiResponse<T>> {
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: this.getHeaders(includeAuth),
-        body: body ? JSON.stringify(body) : undefined,
-      });
-
-      return this.handleResponse<T>(response);
-    } catch (error) {
-      return this.handleError(error);
-    }
+    return this.request<T>("POST", url, { body, includeAuth });
   }
 
   /**
    * Performs a PUT request
    */
-  async put<T = unknown>(url: string, body?: unknown): Promise<ApiResponse<T>> {
-    try {
-      const response = await fetch(url, {
-        method: "PUT",
-        headers: this.getHeaders(),
-        body: body ? JSON.stringify(body) : undefined,
-      });
-
-      return this.handleResponse<T>(response);
-    } catch (error) {
-      return this.handleError(error);
-    }
+  async put<T = unknown>(
+    url: string,
+    body?: unknown,
+    includeAuth: boolean = true
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>("PUT", url, { body, includeAuth });
   }
 
   /**
    * Performs a DELETE request
    */
-  async delete<T = unknown>(url: string): Promise<ApiResponse<T>> {
-    try {
-      const response = await fetch(url, {
-        method: "DELETE",
-        headers: this.getHeaders(),
-      });
-
-      return this.handleResponse<T>(response);
-    } catch (error) {
-      return this.handleError(error);
-    }
+  async delete<T = unknown>(
+    url: string,
+    includeAuth: boolean = true
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>("DELETE", url, { includeAuth });
   }
 
   /**

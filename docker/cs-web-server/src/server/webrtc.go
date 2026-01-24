@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/pion/logging"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v4"
@@ -28,8 +27,6 @@ var (
 	listLock        sync.RWMutex
 	peerConnections []*peerConnectionState
 	trackLocals     map[string]*webrtc.TrackLocalStaticRTP
-
-	log = logging.NewDefaultLoggerFactory().NewLogger("sfu-ws")
 )
 
 const DefaultSignalsCount = 5
@@ -238,7 +235,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 	// Upgrade HTTP request to Websocket
 	unsafeConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Errorf("Failed to upgrade HTTP to Websocket: ", err)
+		log.Errorf("Failed to upgrade HTTP to Websocket: %v", err)
 
 		return
 	}

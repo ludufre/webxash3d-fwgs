@@ -32,6 +32,10 @@ body {
   --token-valid: var(--success);
   --token-expiring: var(--error);
   --log-border: rgba(0, 0, 0, 0.1);
+
+  /* Overlay colors */
+  --overlay-scanline: rgba(0, 0, 0, 0.1);
+  --overlay-scanline-transparent: rgba(0, 0, 0, 0);
 }
 
 body {
@@ -48,8 +52,8 @@ body::before {
   background-repeat: no-repeat;
   background-size: 420px;
   opacity: 0.08;
-  content: "";
   pointer-events: none;
+  content: "";
 }
 
 /* Scanline effect overlay */
@@ -59,10 +63,10 @@ body::before {
   z-index: 1;
   background-image: repeating-linear-gradient(
     180deg,
-    rgba(0, 0, 0, 0) 0,
-    rgba(0, 0, 0, 0) 2px,
-    rgba(0, 0, 0, 0.1) 2px,
-    rgba(0, 0, 0, 0.1) 4px
+    var(--overlay-scanline-transparent) 0,
+    var(--overlay-scanline-transparent) 2px,
+    var(--overlay-scanline) 2px,
+    var(--overlay-scanline) 4px
   );
   opacity: 0.3;
   pointer-events: none;
@@ -194,7 +198,7 @@ body::before {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .username-info,
@@ -426,10 +430,10 @@ body::before {
 
 .language-selector {
   min-width: 180px;
-  font-size: 10px;
   padding: 4px 20px 4px 6px;
-  background-size: 6px auto;
   background-position: right 5px top 50%;
+  background-size: 6px auto;
+  font-size: 10px;
 }
 
 .language-selector option {
@@ -437,12 +441,6 @@ body::before {
 }
 
 /* Admin header language selector */
-.header-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
 .header-controls .language-selector {
   min-width: 150px;
 }

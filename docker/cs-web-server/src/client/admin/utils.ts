@@ -1,4 +1,5 @@
 import type { JWTPayload } from "./types";
+import { logger } from "./logger";
 
 // ============================================
 // Utility Functions
@@ -19,7 +20,7 @@ export function decodeJWT(token: string): JWTPayload | null {
     );
     return JSON.parse(jsonPayload) as JWTPayload;
   } catch (e) {
-    console.error("Failed to decode JWT:", e);
+    logger.error("Failed to decode JWT:", e);
     return null;
   }
 }
