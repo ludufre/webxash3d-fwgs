@@ -57,6 +57,13 @@ RUN rm -f addons/amxmodx/configs/stats.ini \
     addons/amxmodx/scripting/stats_logging.sma \
     addons/amxmodx/scripting/statsx.sma
 
+RUN curl -sLO "$JK_BOTTI_URL" \
+    && echo "$JK_BOTTI_SHA256  $JK_BOTTI_FILENAME" | sha256sum -c - \
+    && tar -C /opt/xash/xashds/valve/ -xJf "$JK_BOTTI_FILENAME" \
+    && echo 'linux addons/jk_botti/dlls/jk_botti_mm_i386.so' >> /opt/xash/xashds/valve/addons/metamod/plugins.ini \
+    && rm -f "$JK_BOTTI_FILENAME" \
+    && patchelf --clear-execstack /opt/xash/xashds/valve/addons/jk_botti/dlls/jk_botti_mm_i386.so
+
 FROM yohimik/hl-web-server:latest AS server
 
 COPY --from=base "/xashds/valve" valve
