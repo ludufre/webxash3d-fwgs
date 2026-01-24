@@ -11,7 +11,7 @@ import { stripAnsiCodes } from "./utils";
 
 class WebSocketManager {
   private ws: WebSocket | null = null;
-  private reconnectTimer: number | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private currentTokenData: TokenData | null = null;
   private onLogoutCallback: (() => void) | null = null;
   private onSettingReceivedCallback: ((settingName: string) => void) | null =
@@ -241,7 +241,7 @@ class WebSocketManager {
         uiManager.addLog("System", i18n.t("logs.reconnecting"));
         this.connect(this.currentTokenData!, this.onLogoutCallback!);
       }
-    }, 3000) as unknown as number;
+    }, 3000);
   }
 }
 

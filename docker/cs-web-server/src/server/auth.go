@@ -35,6 +35,7 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token     string `json:"token"`
 	ExpiresIn int64  `json:"expiresIn"` // seconds
+	LogLevel  string `json:"logLevel"`  // admin panel log level
 }
 
 // SaltResponse represents the salt response
@@ -158,6 +159,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(LoginResponse{
 		Token:     token,
 		ExpiresIn: int64(jwtExpiration.Seconds()),
+		LogLevel:  adminLogLevel,
 	})
 
 	log.Infof("Successful login from %s as user: %s", r.RemoteAddr, req.Username)

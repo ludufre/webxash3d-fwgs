@@ -19,6 +19,10 @@ importers:
         version: 5.9.3
 
   docker/cs-web-server:
+    dependencies:
+      pino:
+        specifier: 9.9.0
+        version: 9.9.0
     devDependencies:
       cs16-client:
         specifier: 0.1.2

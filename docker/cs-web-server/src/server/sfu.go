@@ -48,6 +48,20 @@ func init() {
 		log.Infof("JWT authentication enabled for user: %s", adminUsername)
 	}
 
+	// Load admin panel log level (default: info)
+	adminLogLevel = os.Getenv("ADMIN_LOG_LEVEL")
+	if adminLogLevel == "" {
+		adminLogLevel = "info"
+	}
+	// Validate log level
+	switch adminLogLevel {
+	case "debug", "info", "warn", "error", "silent":
+		// Valid log level
+	default:
+		log.Warnf("Invalid ADMIN_LOG_LEVEL '%s', using default: 'info'", adminLogLevel)
+		adminLogLevel = "info"
+	}
+
 	// Initialize log streaming
 	logBuffer = NewCircularBuffer(1000)
 	logClients = make(map[*websocket.Conn]chan string)

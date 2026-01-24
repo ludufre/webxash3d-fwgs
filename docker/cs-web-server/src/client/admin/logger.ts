@@ -1,6 +1,10 @@
+import pino from "pino";
+
 // ============================================
 // Log Levels
 // ============================================
+
+export type LogLevelString = "debug" | "info" | "warn" | "error" | "silent";
 
 export enum LogLevel {
   DEBUG = 0,
@@ -10,68 +14,141 @@ export enum LogLevel {
   NONE = 4,
 }
 
+// Map string levels to enum
+const levelStringToEnum: Record<LogLevelString, LogLevel> = {
+  debug: LogLevel.DEBUG,
+  info: LogLevel.INFO,
+  warn: LogLevel.WARN,
+  error: LogLevel.ERROR,
+  silent: LogLevel.NONE,
+};
+
 // ============================================
-// Logger Class
+// Cached Log Entry
 // ============================================
 
-class Logger {
-  private level: LogLevel = LogLevel.INFO;
-  private prefix: string = "[Admin]";
-  private showTimestamp: boolean = true;
+interface CachedLog {
+  level: LogLevelString;
+  args: unknown[];
+  timestamp: number;
+}
+
+// ============================================
+// Logger Wrapper Class
+// ============================================
+
+class LoggerWrapper {
+  private cachedLogs: CachedLog[] = [];
+  private pinoInstance: pino.Logger | null = null;
+  private isInitialized = false;
+  private currentLevel: LogLevel = LogLevel.INFO;
+  private prefix = "[Admin]";
 
   /**
-   * Sets the minimum log level
+   * Initializes the logger with a specific level
    */
-  setLevel(level: LogLevel): void {
-    this.level = level;
+  initialize(level: LogLevelString = "info"): void {
+    this.pinoInstance = pino({
+      level,
+      browser: {
+        asObject: false,
+        serialize: false,
+        transmit: undefined,
+      },
+    });
+    this.currentLevel = levelStringToEnum[level];
+    this.isInitialized = true;
+    this.flushCachedLogs();
+  }
+
+  /**
+   * Sets the log level
+   */
+  setLevel(level: LogLevelString): void {
+    this.currentLevel = levelStringToEnum[level];
+    if (this.pinoInstance) {
+      this.pinoInstance.level = level;
+    }
   }
 
   /**
    * Gets the current log level
    */
   getLevel(): LogLevel {
-    return this.level;
+    return this.currentLevel;
   }
 
   /**
-   * Sets the log prefix
+   * Checks if the logger is initialized
    */
-  setPrefix(prefix: string): void {
-    this.prefix = prefix;
+  get initialized(): boolean {
+    return this.isInitialized;
   }
 
   /**
-   * Enables/disables timestamps in logs
+   * Flushes cached logs to the pino instance
    */
-  setShowTimestamp(show: boolean): void {
-    this.showTimestamp = show;
-  }
+  private flushCachedLogs(): void {
+    if (!this.pinoInstance) return;
 
-  /**
-   * Formats the log message with prefix and optional timestamp
-   */
-  private format(level: string, ...args: unknown[]): unknown[] {
-    const parts: unknown[] = [];
-
-    if (this.showTimestamp) {
-      const now = new Date();
-      const time = now.toTimeString().slice(0, 8);
-      parts.push(`[${time}]`);
+    for (const log of this.cachedLogs) {
+      this.logToPino(log.level, ...log.args);
     }
+    this.cachedLogs = [];
+  }
 
-    parts.push(this.prefix);
-    parts.push(`[${level}]`);
-    parts.push(...args);
+  /**
+   * Formats arguments with prefix and timestamp
+   */
+  private formatArgs(...args: unknown[]): string {
+    const now = new Date();
+    const time = now.toTimeString().slice(0, 8);
+    return `[${time}] ${this.prefix} ${args.map((a) => (typeof a === "object" ? JSON.stringify(a) : String(a))).join(" ")}`;
+  }
 
-    return parts;
+  /**
+   * Logs to pino instance
+   */
+  private logToPino(level: LogLevelString, ...args: unknown[]): void {
+    if (!this.pinoInstance) return;
+
+    const message = this.formatArgs(...args);
+
+    switch (level) {
+      case "debug":
+        this.pinoInstance.debug(message);
+        break;
+      case "info":
+        this.pinoInstance.info(message);
+        break;
+      case "warn":
+        this.pinoInstance.warn(message);
+        break;
+      case "error":
+        this.pinoInstance.error(message);
+        break;
+    }
+  }
+
+  /**
+   * Caches a log entry
+   */
+  private cacheLog(level: LogLevelString, ...args: unknown[]): void {
+    this.cachedLogs.push({
+      level,
+      args,
+      timestamp: Date.now(),
+    });
   }
 
   /**
    * Logs debug messages
    */
   debug(...args: unknown[]): void {
-    if (this.level <= LogLevel.DEBUG) {
-      console.debug(...this.format("DEBUG", ...args));
+    if (this.isInitialized) {
+      this.logToPino("debug", ...args);
+    } else {
+      this.cacheLog("debug", ...args);
     }
   }
 
@@ -79,8 +156,10 @@ class Logger {
    * Logs info messages
    */
   info(...args: unknown[]): void {
-    if (this.level <= LogLevel.INFO) {
-      console.info(...this.format("INFO", ...args));
+    if (this.isInitialized) {
+      this.logToPino("info", ...args);
+    } else {
+      this.cacheLog("info", ...args);
     }
   }
 
@@ -88,8 +167,10 @@ class Logger {
    * Logs warning messages
    */
   warn(...args: unknown[]): void {
-    if (this.level <= LogLevel.WARN) {
-      console.warn(...this.format("WARN", ...args));
+    if (this.isInitialized) {
+      this.logToPino("warn", ...args);
+    } else {
+      this.cacheLog("warn", ...args);
     }
   }
 
@@ -97,79 +178,23 @@ class Logger {
    * Logs error messages
    */
   error(...args: unknown[]): void {
-    if (this.level <= LogLevel.ERROR) {
-      console.error(...this.format("ERROR", ...args));
+    if (this.isInitialized) {
+      this.logToPino("error", ...args);
+    } else {
+      this.cacheLog("error", ...args);
     }
   }
 
   /**
-   * Logs messages without level filtering (always shown unless NONE)
+   * Logs messages (alias for info)
    */
   log(...args: unknown[]): void {
-    if (this.level < LogLevel.NONE) {
-      console.log(...this.format("LOG", ...args));
-    }
-  }
-
-  /**
-   * Creates a child logger with a different prefix
-   */
-  child(prefix: string): Logger {
-    const child = new Logger();
-    child.level = this.level;
-    child.prefix = `${this.prefix}${prefix}`;
-    child.showTimestamp = this.showTimestamp;
-    return child;
-  }
-
-  /**
-   * Groups console messages
-   */
-  group(label: string): void {
-    if (this.level < LogLevel.NONE) {
-      console.group(`${this.prefix} ${label}`);
-    }
-  }
-
-  /**
-   * Ends console group
-   */
-  groupEnd(): void {
-    if (this.level < LogLevel.NONE) {
-      console.groupEnd();
-    }
-  }
-
-  /**
-   * Logs a table
-   */
-  table(data: unknown): void {
-    if (this.level < LogLevel.NONE) {
-      console.table(data);
-    }
-  }
-
-  /**
-   * Measures time for an operation
-   */
-  time(label: string): void {
-    if (this.level <= LogLevel.DEBUG) {
-      console.time(`${this.prefix} ${label}`);
-    }
-  }
-
-  /**
-   * Ends time measurement
-   */
-  timeEnd(label: string): void {
-    if (this.level <= LogLevel.DEBUG) {
-      console.timeEnd(`${this.prefix} ${label}`);
-    }
+    this.info(...args);
   }
 }
 
 // Export singleton instance
-export const logger = new Logger();
+export const logger = new LoggerWrapper();
 
-// Export class for creating child loggers
-export { Logger };
+// Export class for type usage
+export { LoggerWrapper };

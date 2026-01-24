@@ -2,7 +2,7 @@ import { domManager } from "./dom";
 import { decodeJWT, hashPassword } from "./utils";
 import { storageManager } from "./storage";
 import { uiManager } from "./ui";
-import { logger } from "./logger";
+import { logger, type LogLevelString } from "./logger";
 import { apiClient } from "./api";
 import { i18n } from "./i18n";
 import type { TokenData, DOMElements } from "./types";
@@ -18,6 +18,7 @@ interface SaltResponse {
 interface LoginResponse {
   token: string;
   expiresIn: number;
+  logLevel: string;
 }
 
 // ============================================
@@ -112,6 +113,14 @@ class AuthService {
       const payload = decodeJWT(response.data.token);
       if (!payload || !payload.username) {
         throw new Error(i18n.t("errors.invalidToken"));
+      }
+
+      // Initialize logger with server-provided log level
+      const logLevel = response.data.logLevel as LogLevelString;
+      if (!logger.initialized) {
+        logger.initialize(logLevel);
+      } else {
+        logger.setLevel(logLevel);
       }
 
       // Create token data

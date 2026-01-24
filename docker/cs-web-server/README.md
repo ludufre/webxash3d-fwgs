@@ -137,6 +137,7 @@ Then open `http://<your-server-ip>:27016` in your browser!
 | `WRITE_WAIT_SECONDS`   | Write deadline in seconds for WebSocket writes and pings (must be a positive integer, otherwise defaults to `10`)                                  | `10`                |
 | `ADMIN_PANEL_USER`     | Username for [Admin Panel](#-admin-panel) access (leave empty to disable)                                                                         | `admin`             |
 | `ADMIN_PANEL_PASSWORD` | Password for [Admin Panel](#-admin-panel) access (leave empty to disable)                                                                         | `<strong_password>` |
+| `ADMIN_LOG_LEVEL`      | Log level for Admin Panel console (`debug`, `info`, `warn`, `error`, `silent`)                                                                    | `info`              |
 
 ### Engine Configuration
 
@@ -175,6 +176,7 @@ This image includes an optional **Admin Panel** for remote administration (RCON,
 environment:
   ADMIN_PANEL_USER: "admin"
   ADMIN_PANEL_PASSWORD: "<strong_password>"
+  ADMIN_LOG_LEVEL: "info"  # optional: debug, info, warn, error, silent
 ```
 
 Access the admin panel at `http://<your-public-ip>:<your-port>/admin`.

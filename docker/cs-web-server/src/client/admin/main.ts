@@ -65,6 +65,10 @@ class AdminApp {
     // Check for existing session
     const storedTokenData = storageManager.loadTokenData();
     if (storedTokenData) {
+      // Initialize logger with default level for restored sessions
+      if (!logger.initialized) {
+        logger.initialize("info");
+      }
       logger.info("Restoring session for:", storedTokenData.username);
       this.tokenData = storedTokenData;
       apiClient.setAuthToken(storedTokenData.token);

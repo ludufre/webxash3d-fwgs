@@ -102,8 +102,9 @@ Then open `http://<your-server-ip>:27016` in your browser!
 | `PORT`                 | UDP port for CS server (must be open)                                     | `27018`                  |
 | `DISABLE_X_POWERED_BY` | Set to `true` to remove the `X-Powered-By` HTTP header                    | `true`                   |
 | `X_POWERED_BY_VALUE`   | Custom value for `X-Powered-By` header if not disabled                    | `CS 1.6 Web Server`.     |
-| `ADMIN_PANEL_USER`       | Username for [Admin Panel](#-admin-panel) access (leave empty to disable) | `admin`                  |
+| `ADMIN_PANEL_USER`     | Username for [Admin Panel](#-admin-panel) access (leave empty to disable) | `admin`                  |
 | `ADMIN_PANEL_PASSWORD` | Password for [Admin Panel](#-admin-panel) access (leave empty to disable) | `<strong_password>`      |
+| `ADMIN_LOG_LEVEL`      | Log level for Admin Panel console (`debug`, `info`, `warn`, `error`, `silent`) | `info`               |
 
 ### Engine Configuration
 
@@ -142,6 +143,7 @@ This image includes an optional **Admin Panel** for remote administration (RCON,
 environment:
   ADMIN_PANEL_USER: "admin"
   ADMIN_PANEL_PASSWORD: "<strong_password>"
+  ADMIN_LOG_LEVEL: "info"  # optional: debug, info, warn, error, silent
 ```
 
 Access the admin panel at `http://<your-public-ip>:<your-port>/admin`.

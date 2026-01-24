@@ -22,7 +22,8 @@ import (
 
 var adminPassword string
 var adminUsername string
-var passwordSalt string // Random salt for password hashing
+var passwordSalt string  // Random salt for password hashing
+var adminLogLevel string // Log level for admin panel (debug, info, warn, error)
 
 // checkCredentials validates both username and password hash using constant-time comparison
 func checkCredentials(username, passwordHash string) bool {
