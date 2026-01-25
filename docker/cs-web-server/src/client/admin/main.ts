@@ -1,11 +1,12 @@
 import { storageManager } from "./storage";
-import { authService } from "./auth";
-import { webSocketManager } from "./websocket";
-import { commandService } from "./commands";
+import { AuthService } from "./auth";
+import { WebSocketManager } from "./websocket";
+import { CommandService } from "./commands";
 import { uiManager } from "./ui";
-import { apiClient } from "./api";
+import { ApiClient } from "./api";
 import { logger } from "./logger";
 import { i18n } from "./i18n";
+import { domManager } from "./dom";
 import type { TokenData } from "./types";
 
 // ============================================
@@ -14,16 +15,53 @@ import type { TokenData } from "./types";
 
 class AdminApp {
   private tokenData: TokenData | null = null;
+  private readonly apiClient: ApiClient;
+  private readonly authService: AuthService;
+  private readonly webSocketManager: WebSocketManager;
+  private readonly commandService: CommandService;
+
+  constructor() {
+    // Create API client with logger
+    this.apiClient = new ApiClient({ logger });
+
+    // Create WebSocket manager with DI
+    this.webSocketManager = new WebSocketManager({
+      domManager,
+      uiManager,
+      logger,
+      i18n,
+    });
+
+    // Create command service with DI
+    this.commandService = new CommandService({
+      domManager,
+      uiManager,
+      webSocketManager: this.webSocketManager,
+      apiClient: this.apiClient,
+      i18n,
+      logger,
+    });
+
+    // Create auth service with DI
+    this.authService = new AuthService({
+      domManager,
+      logger,
+      apiClient: this.apiClient,
+      storageManager,
+      uiManager,
+      i18n,
+    });
+  }
 
   /**
    * Handles logout
    */
   private handleLogout = (): void => {
     logger.info("User logged out");
-    webSocketManager.disconnect();
+    this.webSocketManager.disconnect();
     uiManager.clearLogs();
     uiManager.showAuthPanel();
-    apiClient.setAuthToken(null);
+    this.apiClient.config = { authToken: null };
     this.tokenData = null;
   };
 
@@ -33,9 +71,9 @@ class AdminApp {
   private handleLogin = (newTokenData: TokenData): void => {
     logger.info("User logged in:", newTokenData.username);
     this.tokenData = newTokenData;
-    apiClient.setAuthToken(newTokenData.token);
-    commandService.initialize(this.tokenData, this.handleLogout);
-    webSocketManager.connect(this.tokenData, this.handleLogout);
+    this.apiClient.config = { authToken: newTokenData.token };
+    this.commandService.initialize(this.tokenData, this.handleLogout);
+    this.webSocketManager.connect(this.tokenData, this.handleLogout);
   };
 
   /**
@@ -48,19 +86,19 @@ class AdminApp {
     await i18n.init();
 
     // Prefetch salt (non-blocking)
-    authService.prefetchSalt();
+    this.authService.prefetchSalt();
 
     // Setup UI
     uiManager.setupAutoScroll();
     uiManager.setupLanguageSelector();
 
     // Setup event handlers
-    authService.setupAuthHandler(this.handleLogin);
-    authService.setupDisconnectHandler(this.handleLogout);
-    commandService.setupCommandHandler();
-    commandService.setupQuickCommands();
-    commandService.setupGameSettingsHandler();
-    commandService.setupChangelevelHandler();
+    this.authService.setupAuthHandler(this.handleLogin);
+    this.authService.setupDisconnectHandler(this.handleLogout);
+    this.commandService.setupCommandHandler();
+    this.commandService.setupQuickCommands();
+    this.commandService.setupGameSettingsHandler();
+    this.commandService.setupChangelevelHandler();
 
     // Check for existing session
     const storedTokenData = storageManager.loadTokenData();
@@ -71,10 +109,10 @@ class AdminApp {
       }
       logger.info("Restoring session for:", storedTokenData.username);
       this.tokenData = storedTokenData;
-      apiClient.setAuthToken(storedTokenData.token);
-      authService.initializeAdminPanel(this.tokenData);
-      commandService.initialize(this.tokenData, this.handleLogout);
-      webSocketManager.connect(this.tokenData, this.handleLogout);
+      this.apiClient.config = { authToken: storedTokenData.token };
+      this.authService.initializeAdminPanel(this.tokenData);
+      this.commandService.initialize(this.tokenData, this.handleLogout);
+      this.webSocketManager.connect(this.tokenData, this.handleLogout);
     } else {
       logger.info("No stored session found");
     }

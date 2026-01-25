@@ -69,3 +69,6 @@ class StorageManager {
 
 // Export singleton instance
 export const storageManager = new StorageManager();
+
+// Export class for type usage
+export { StorageManager };

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -226,41 +225,4 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// Token is valid, proceed to handler
 		next(w, r)
 	}
-}
-
-// Token bucket for rate limiting
-type tokenBucket struct {
-	tokens     float64
-	lastRefill time.Time
-	mu         sync.Mutex
-}
-
-func newTokenBucket(capacity float64) *tokenBucket {
-	return &tokenBucket{
-		tokens:     capacity,
-		lastRefill: time.Now(),
-	}
-}
-
-func (tb *tokenBucket) allow(rate float64, capacity float64) bool {
-	tb.mu.Lock()
-	defer tb.mu.Unlock()
-
-	now := time.Now()
-	elapsed := now.Sub(tb.lastRefill).Seconds()
-
-	// Refill tokens based on elapsed time
-	tb.tokens += elapsed * rate
-	if tb.tokens > capacity {
-		tb.tokens = capacity
-	}
-	tb.lastRefill = now
-
-	// Check if we have tokens
-	if tb.tokens >= 1 {
-		tb.tokens--
-		return true
-	}
-
-	return false
 }

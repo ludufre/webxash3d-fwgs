@@ -235,3 +235,6 @@ class I18n {
 
 // Export singleton instance
 export const i18n = new I18n();
+
+// Export class for type usage (as I18nManager for consistency)
+export { I18n as I18nManager };

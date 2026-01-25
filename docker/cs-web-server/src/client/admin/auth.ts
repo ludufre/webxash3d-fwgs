@@ -1,11 +1,11 @@
-import { domManager } from "./dom";
 import { decodeJWT, hashPassword } from "./utils";
-import { storageManager } from "./storage";
-import { uiManager } from "./ui";
-import { logger, type LogLevelString } from "./logger";
-import { apiClient } from "./api";
-import { i18n } from "./i18n";
+import type { LogLevelString, LoggerWrapper } from "./logger";
+import type { ApiClient } from "./api";
+import type { I18nManager } from "./i18n";
 import type { TokenData, DOMElements } from "./types";
+import type { DOMManager } from "./dom";
+import type { StorageManager } from "./storage";
+import type { UIManager } from "./ui";
 
 // ============================================
 // Response Types
@@ -22,18 +22,47 @@ interface LoginResponse {
 }
 
 // ============================================
+// Auth Service Options
+// ============================================
+
+export interface AuthServiceOptions {
+  domManager: DOMManager;
+  logger: LoggerWrapper;
+  apiClient: ApiClient;
+  storageManager: StorageManager;
+  uiManager: UIManager;
+  i18n: I18nManager;
+}
+
+// ============================================
 // Auth Service Class
 // ============================================
 
-class AuthService {
+export class AuthService {
   private passwordSalt: string | null = null;
-  private tokenExpiryTimer: NodeJS.Timeout | null = null;
+  private tokenExpiryTimer: ReturnType<typeof setInterval> | null = null;
+
+  private readonly domManager: DOMManager;
+  private readonly logger: LoggerWrapper;
+  private readonly apiClient: ApiClient;
+  private readonly storageManager: StorageManager;
+  private readonly uiManager: UIManager;
+  private readonly i18n: I18nManager;
+
+  constructor(options: AuthServiceOptions) {
+    this.domManager = options.domManager;
+    this.logger = options.logger;
+    this.apiClient = options.apiClient;
+    this.storageManager = options.storageManager;
+    this.uiManager = options.uiManager;
+    this.i18n = options.i18n;
+  }
 
   /**
    * Gets DOM elements
    */
   private get el(): DOMElements {
-    return domManager.elements;
+    return this.domManager.elements;
   }
 
   // ============================================
@@ -44,14 +73,14 @@ class AuthService {
    * Fetches password salt from server
    */
   async fetchSalt(): Promise<string> {
-    const response = await apiClient.get<SaltResponse>("/auth/salt", false);
+    const response = await this.apiClient.request<SaltResponse>("GET", "/v1/auth", { includeAuth: false });
 
     if (response.status === 503) {
-      throw new Error(i18n.t("errors.adminDisabled"));
+      throw new Error(this.i18n.t("errors.adminDisabled"));
     }
 
     if (!response.ok || !response.data) {
-      throw new Error(i18n.t("errors.failedToFetchSalt"));
+      throw new Error(this.i18n.t("errors.failedToFetchSalt"));
     }
 
     return response.data.salt;
@@ -64,7 +93,7 @@ class AuthService {
     try {
       this.passwordSalt = await this.fetchSalt();
     } catch (err) {
-      logger.warn("Failed to prefetch salt:", err);
+      this.logger.warn("Failed to prefetch salt:", err);
     }
   }
 
@@ -76,7 +105,7 @@ class AuthService {
    * Performs login
    */
   async login(username: string, password: string): Promise<TokenData> {
-    uiManager.setLoginButtonState(true);
+    this.uiManager.setLoginButtonState(true);
 
     try {
       // Fetch salt if not cached
@@ -87,40 +116,40 @@ class AuthService {
       // Hash password with salt
       const passwordHash = await hashPassword(password, this.passwordSalt);
 
-      const response = await apiClient.post<LoginResponse>(
-        "/login",
-        { username, passwordHash },
-        false
+      const response = await this.apiClient.request<LoginResponse>(
+        "POST",
+        "/v1/auth",
+        { body: { username, passwordHash }, includeAuth: false }
       );
 
       if (response.status === 401) {
-        throw new Error(i18n.t("errors.invalidCredentials"));
+        throw new Error(this.i18n.t("errors.invalidCredentials"));
       }
 
       if (response.status === 429) {
-        throw new Error(i18n.t("errors.tooManyAttempts"));
+        throw new Error(this.i18n.t("errors.tooManyAttempts"));
       }
 
       if (response.status === 503) {
-        throw new Error(i18n.t("errors.adminDisabled"));
+        throw new Error(this.i18n.t("errors.adminDisabled"));
       }
 
       if (!response.ok || !response.data) {
-        throw new Error(i18n.t("errors.loginFailed"));
+        throw new Error(this.i18n.t("errors.loginFailed"));
       }
 
       // Decode token to extract username
       const payload = decodeJWT(response.data.token);
       if (!payload || !payload.username) {
-        throw new Error(i18n.t("errors.invalidToken"));
+        throw new Error(this.i18n.t("errors.invalidToken"));
       }
 
       // Initialize logger with server-provided log level
       const logLevel = response.data.logLevel as LogLevelString;
-      if (!logger.initialized) {
-        logger.initialize(logLevel);
+      if (!this.logger.initialized) {
+        this.logger.initialize(logLevel);
       } else {
-        logger.setLevel(logLevel);
+        this.logger.setLevel(logLevel);
       }
 
       // Create token data
@@ -132,18 +161,18 @@ class AuthService {
       };
 
       // Save to storage and set token for API client
-      storageManager.saveTokenData(tokenData);
-      apiClient.setAuthToken(tokenData.token);
+      this.storageManager.saveTokenData(tokenData);
+      this.apiClient.config = { authToken: tokenData.token };
 
-      logger.info("Login successful for:", tokenData.username);
+      this.logger.info("Login successful for:", tokenData.username);
 
       // Clear form and errors
-      uiManager.clearAuthError();
-      uiManager.clearAuthForm();
+      this.uiManager.clearAuthError();
+      this.uiManager.clearAuthForm();
 
       return tokenData;
     } finally {
-      uiManager.setLoginButtonState(false);
+      this.uiManager.setLoginButtonState(false);
     }
   }
 
@@ -156,9 +185,9 @@ class AuthService {
       this.tokenExpiryTimer = null;
     }
 
-    storageManager.clearTokenData();
-    apiClient.setAuthToken(null);
-    uiManager.clearAuthForm();
+    this.storageManager.clearTokenData();
+    this.apiClient.config = { authToken: null };
+    this.uiManager.clearAuthForm();
 
     onLogout();
   }
@@ -171,9 +200,9 @@ class AuthService {
    * Initializes admin panel with token data
    */
   initializeAdminPanel(tokenData: TokenData): void {
-    uiManager.showAdminPanel();
-    uiManager.updateUsernameDisplay(tokenData.username);
-    uiManager.updateTokenExpiry(tokenData);
+    this.uiManager.showAdminPanel();
+    this.uiManager.updateUsernameDisplay(tokenData.username);
+    this.uiManager.updateTokenExpiry(tokenData);
     this.startTokenExpiryCheck(tokenData);
   }
 
@@ -187,7 +216,7 @@ class AuthService {
 
     // Update every minute
     this.tokenExpiryTimer = setInterval(() => {
-      uiManager.updateTokenExpiry(tokenData);
+      this.uiManager.updateTokenExpiry(tokenData);
 
       // Auto-logout if expired
       if (tokenData.expiresAt <= Date.now()) {
@@ -212,12 +241,12 @@ class AuthService {
       const password = this.el.passwordInput.value.trim();
 
       if (!username) {
-        uiManager.showAuthError("Username is required");
+        this.uiManager.showAuthError(this.i18n.t("errors.usernameRequired"));
         return;
       }
 
       if (!password) {
-        uiManager.showAuthError("Password is required");
+        this.uiManager.showAuthError(this.i18n.t("errors.passwordRequired"));
         return;
       }
 
@@ -226,7 +255,7 @@ class AuthService {
         this.initializeAdminPanel(tokenData);
         onLogin(tokenData);
       } catch (error) {
-        uiManager.showAuthError(
+        this.uiManager.showAuthError(
           error instanceof Error ? error.message : "Login failed"
         );
       }
@@ -242,6 +271,3 @@ class AuthService {
     });
   }
 }
-
-// Export singleton instance
-export const authService = new AuthService();

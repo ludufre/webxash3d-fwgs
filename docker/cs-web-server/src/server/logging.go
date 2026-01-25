@@ -133,7 +133,7 @@ func sendHistory(conn *websocket.Conn) error {
 		Event string      `json:"event"`
 		Logs  []*LogEntry `json:"logs"`
 	}{
-		Event: "history",
+		Event: LogsEventHistory,
 		Logs:  history,
 	}
 

@@ -314,3 +314,6 @@ class UIManager {
 
 // Export singleton instance
 export const uiManager = new UIManager();
+
+// Export class for type usage
+export { UIManager };

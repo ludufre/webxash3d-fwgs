@@ -23,24 +23,38 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Powered-By", xPoweredByValue)
 	}
 	switch r.URL.Path {
+	// WebRTC WebSocket - no version needed (protocol-level)
 	case "/websocket":
 		websocketHandler(w, r)
-	case "/config":
+
+	// Versioned REST API v1
+	case "/v1/auth":
+		switch r.Method {
+		case http.MethodGet:
+			// GET /v1/auth - retrieve password salt
+			saltHandler(w, r)
+		case http.MethodPost:
+			// POST /v1/auth - login with rate limiting
+			loginRateLimiter.Middleware(loginHandler)(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+
+	case "/v1/config":
 		configHandler(w, r)
-	case "/auth/salt":
-		// Public endpoint to retrieve password salt
-		saltHandler(w, r)
-	case "/login":
-		// Login endpoint with rate limiting (5 attempts per minute)
-		loginRateLimiter.Middleware(loginHandler)(w, r)
-	case "/rcon":
+
+	case "/v1/rcon":
 		// RCON endpoint with rate limiting and JWT auth (30 requests per minute)
 		rconRateLimiter.Middleware(authMiddleware(rconHandler))(w, r)
-	case "/logs":
-		// WebSocket logs endpoint (JWT validation inside handler)
+
+	// WebSocket logs endpoint - versioned path
+	case "/websocket/logs":
 		logsWebSocketHandler(w, r)
+
+	// Admin panel
 	case "/admin", "/admin/":
 		adminHandler(w, r)
+
 	default:
 		// Serve from public directory
 		p := r.URL.Path

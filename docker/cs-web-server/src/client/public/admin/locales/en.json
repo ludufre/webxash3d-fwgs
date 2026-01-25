@@ -82,6 +82,8 @@
     "autocrosshair": "Autocrosshair"
   },
   "errors": {
+    "usernameRequired": "Username is required",
+    "passwordRequired": "Password is required",
     "notAuthenticated": "ERROR: Not authenticated",
     "authFailed": "ERROR: Authentication failed - token expired",
     "insufficientPermissions": "ERROR: Insufficient permissions",

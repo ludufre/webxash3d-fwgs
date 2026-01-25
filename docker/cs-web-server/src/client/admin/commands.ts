@@ -1,16 +1,30 @@
-import { domManager } from "./dom";
-import { uiManager } from "./ui";
-import { webSocketManager } from "./websocket";
 import { getInputValue } from "./utils";
-import { apiClient } from "./api";
-import { i18n } from "./i18n";
+import type { ApiClient } from "./api";
+import type { I18nManager } from "./i18n";
+import type { LoggerWrapper } from "./logger";
 import type { TokenData, DOMElements } from "./types";
+import type { DOMManager } from "./dom";
+import type { UIManager } from "./ui";
+import type { WebSocketManager } from "./websocket";
+
+// ============================================
+// Command Service Options
+// ============================================
+
+export interface CommandServiceOptions {
+  domManager: DOMManager;
+  uiManager: UIManager;
+  webSocketManager: WebSocketManager;
+  apiClient: ApiClient;
+  i18n: I18nManager;
+  logger: LoggerWrapper;
+}
 
 // ============================================
 // Command Service Class
 // ============================================
 
-class CommandService {
+export class CommandService {
   private currentTokenData: TokenData | null = null;
   private onLogoutCallback: (() => void) | null = null;
   private originalSettings: Map<string, string> = new Map();
@@ -18,11 +32,27 @@ class CommandService {
   private settingsTimeout: ReturnType<typeof setTimeout> | null = null;
   private allSettingNames: string[] = [];
 
+  private readonly domManager: DOMManager;
+  private readonly uiManager: UIManager;
+  private readonly webSocketManager: WebSocketManager;
+  private readonly apiClient: ApiClient;
+  private readonly i18n: I18nManager;
+  private readonly logger: LoggerWrapper;
+
+  constructor(options: CommandServiceOptions) {
+    this.domManager = options.domManager;
+    this.uiManager = options.uiManager;
+    this.webSocketManager = options.webSocketManager;
+    this.apiClient = options.apiClient;
+    this.i18n = options.i18n;
+    this.logger = options.logger;
+  }
+
   /**
    * Gets DOM elements
    */
   private get el(): DOMElements {
-    return domManager.elements;
+    return this.domManager.elements;
   }
 
   /**
@@ -31,9 +61,10 @@ class CommandService {
   initialize(tokenData: TokenData, onLogout: () => void): void {
     this.currentTokenData = tokenData;
     this.onLogoutCallback = onLogout;
+    this.apiClient.config = { authToken: tokenData.token };
 
     // Set up callback for settings received via WebSocket
-    webSocketManager.setSettingReceivedCallback((settingName) => {
+    this.webSocketManager.setSettingReceivedCallback((settingName) => {
       this.onSettingReceived(settingName);
     });
   }
@@ -43,19 +74,19 @@ class CommandService {
    */
   async sendCommand(command: string): Promise<void> {
     if (!this.currentTokenData) {
-      uiManager.addLog("System", i18n.t("errors.notAuthenticated"));
+      this.uiManager.addLog("System", this.i18n.t("errors.notAuthenticated"));
       return;
     }
 
-    uiManager.addLog("System", `> ${command}`);
+    this.uiManager.addLog("System", `> ${command}`);
 
     try {
-      const response = await apiClient.post<void>("/rcon", { command });
+      const response = await this.apiClient.request<void>("POST", "/v1/rcon", { body: { command } });
 
       if (response.status === 401) {
-        uiManager.addLog(
+        this.uiManager.addLog(
           "System",
-          i18n.t("errors.authFailed")
+          this.i18n.t("errors.authFailed")
         );
         setTimeout(() => {
           if (this.onLogoutCallback) {
@@ -66,22 +97,22 @@ class CommandService {
       }
 
       if (response.status === 403) {
-        uiManager.addLog("System", i18n.t("errors.insufficientPermissions"));
+        this.uiManager.addLog("System", this.i18n.t("errors.insufficientPermissions"));
         return;
       }
 
       if (response.status === 429) {
-        uiManager.addLog(
+        this.uiManager.addLog(
           "System",
-          i18n.t("errors.rateLimitExceeded")
+          this.i18n.t("errors.rateLimitExceeded")
         );
         return;
       }
 
       if (!response.ok) {
-        uiManager.addLog(
+        this.uiManager.addLog(
           "System",
-          i18n.t("errors.commandFailed", { status: response.status })
+          this.i18n.t("errors.commandFailed", { status: response.status })
         );
         return;
       }
@@ -89,7 +120,7 @@ class CommandService {
       // Command sent successfully (204 No Content)
       // Output will appear in logs via WebSocket
     } catch (error) {
-      uiManager.addLog("System", `ERROR: ${error}`);
+      this.uiManager.addLog("System", `ERROR: ${error}`);
     }
   }
 
@@ -111,8 +142,8 @@ class CommandService {
     const form = this.el.gameSettingsForm;
     const inputs = form.querySelectorAll("input, select");
 
-    uiManager.showSettingsLoading();
-    uiManager.showAllSettingRows();
+    this.uiManager.showSettingsLoading();
+    this.uiManager.showAllSettingRows();
     this.receivedSettings.clear();
     this.originalSettings.clear();
 
@@ -129,16 +160,16 @@ class CommandService {
     }, 2000);
 
     try {
-      const response = await apiClient.post<void>("/rcon", {
-        command: this.allSettingNames,
+      const response = await this.apiClient.request<void>("POST", "/v1/rcon", {
+        body: { command: this.allSettingNames },
       });
 
       if (response.status !== 204) {
-        uiManager.addLog("System", i18n.t("errors.failedToGetSettings"));
+        this.uiManager.addLog("System", this.i18n.t("errors.failedToGetSettings"));
         if (this.settingsTimeout) {
           clearTimeout(this.settingsTimeout);
         }
-        uiManager.showSettingsRefreshButton();
+        this.uiManager.showSettingsRefreshButton();
         return;
       }
 
@@ -146,11 +177,11 @@ class CommandService {
         this.finalizeSettingsFetch();
       }, 500);
     } catch (error) {
-      uiManager.addLog("System", `ERROR: ${error}`);
+      this.uiManager.addLog("System", `ERROR: ${error}`);
       if (this.settingsTimeout) {
         clearTimeout(this.settingsTimeout);
       }
-      uiManager.showSettingsRefreshButton();
+      this.uiManager.showSettingsRefreshButton();
     }
   }
 
@@ -159,8 +190,8 @@ class CommandService {
    */
   private handleSettingsTimeout(): void {
     if (this.receivedSettings.size === 0) {
-      uiManager.addLog("System", i18n.t("errors.settingsTimeout"));
-      uiManager.showSettingsRefreshButton();
+      this.uiManager.addLog("System", this.i18n.t("errors.settingsTimeout"));
+      this.uiManager.showSettingsRefreshButton();
     } else {
       this.finalizeSettingsFetch();
     }
@@ -176,13 +207,13 @@ class CommandService {
     }
 
     if (this.receivedSettings.size === 0) {
-      uiManager.showSettingsRefreshButton();
+      this.uiManager.showSettingsRefreshButton();
       return;
     }
 
     for (const fieldName of this.allSettingNames) {
       if (!this.receivedSettings.has(fieldName)) {
-        uiManager.hideSettingRow(fieldName);
+        this.uiManager.hideSettingRow(fieldName);
       }
     }
 
@@ -195,10 +226,10 @@ class CommandService {
       }
     }
 
-    uiManager.showSettingsForm();
-    uiManager.addLog(
+    this.uiManager.showSettingsForm();
+    this.uiManager.addLog(
       "System",
-      i18n.t("settings.loaded", { count: this.receivedSettings.size })
+      this.i18n.t("settings.loaded", { count: this.receivedSettings.size })
     );
   }
 
@@ -226,9 +257,9 @@ class CommandService {
     }
 
     if (changedCount === 0) {
-      uiManager.addLog("System", i18n.t("settings.noChanges"));
+      this.uiManager.addLog("System", this.i18n.t("settings.noChanges"));
     } else {
-      uiManager.addLog("System", i18n.t("settings.applied", { count: changedCount }));
+      this.uiManager.addLog("System", this.i18n.t("settings.applied", { count: changedCount }));
     }
   }
 
@@ -300,5 +331,3 @@ class CommandService {
   }
 }
 
-// Export singleton instance
-export const commandService = new CommandService();

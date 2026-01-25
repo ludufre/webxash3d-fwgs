@@ -82,6 +82,8 @@
     "autocrosshair": "Mira automática"
   },
   "errors": {
+    "usernameRequired": "Usuário é obrigatório",
+    "passwordRequired": "Senha é obrigatória",
     "notAuthenticated": "ERRO: Não autenticado",
     "authFailed": "ERRO: Autenticação falhou - token expirado",
     "insufficientPermissions": "ERRO: Permissões insuficientes",
