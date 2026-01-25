@@ -14,7 +14,7 @@ import type { GameConfig, PlayerSettings } from "./types";
  * Loads game configuration from server
  */
 export async function loadGameConfig(): Promise<GameConfig> {
-  return await fetch("/config").then((res) => res.json());
+  return await fetch("/v1/config").then((res) => res.json());
 }
 
 /**
