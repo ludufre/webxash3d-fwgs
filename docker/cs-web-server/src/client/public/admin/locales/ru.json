@@ -82,6 +82,8 @@
     "autocrosshair": "Автоприцел"
   },
   "errors": {
+    "usernameRequired": "Имя пользователя обязательно",
+    "passwordRequired": "Пароль обязателен",
     "notAuthenticated": "ОШИБКА: Не авторизован",
     "authFailed": "ОШИБКА: Ошибка авторизации - токен истёк",
     "insufficientPermissions": "ОШИБКА: Недостаточно прав",

@@ -83,3 +83,6 @@ class DOMManager {
 
 // Export singleton instance
 export const domManager = new DOMManager();
+
+// Export class for type usage
+export { DOMManager };

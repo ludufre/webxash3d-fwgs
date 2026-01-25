@@ -1,15 +1,41 @@
-import { uiManager } from "./ui";
-import { domManager } from "./dom";
-import { logger } from "./logger";
-import { i18n } from "./i18n";
-import type { TokenData, WebSocketMessage, DOMElements } from "./types";
 import { stripAnsiCodes } from "./utils";
+import type { TokenData, WebSocketMessage, DOMElements } from "./types";
+import type { UIManager } from "./ui";
+import type { DOMManager } from "./dom";
+import type { LoggerWrapper } from "./logger";
+import type { I18nManager } from "./i18n";
+
+// ============================================
+// WebSocket event version constants
+// ============================================
+const EVENT_VERSION = "v1";
+const EVENTS = {
+  AUTH: `${EVENT_VERSION}:auth`,
+  ERROR: `${EVENT_VERSION}:error`,
+  HISTORY: `${EVENT_VERSION}:history`,
+  LOG: `${EVENT_VERSION}:log`,
+} as const;
+
+// ============================================
+// WebSocket Manager Options
+// ============================================
+
+export interface WebSocketManagerOptions {
+  domManager: DOMManager;
+  uiManager: UIManager;
+  logger: LoggerWrapper;
+  i18n: I18nManager;
+}
 
 // ============================================
 // WebSocket Manager Class
 // ============================================
 
-class WebSocketManager {
+export class WebSocketManager {
+  private readonly domManager: DOMManager;
+  private readonly uiManager: UIManager;
+  private readonly logger: LoggerWrapper;
+  private readonly i18n: I18nManager;
   private ws: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private currentTokenData: TokenData | null = null;
@@ -17,11 +43,18 @@ class WebSocketManager {
   private onSettingReceivedCallback: ((settingName: string) => void) | null =
     null;
 
+  constructor(options: WebSocketManagerOptions) {
+    this.domManager = options.domManager;
+    this.uiManager = options.uiManager;
+    this.logger = options.logger;
+    this.i18n = options.i18n;
+  }
+
   /**
    * Gets DOM elements
    */
   private get el(): DOMElements {
-    return domManager.elements;
+    return this.domManager.elements;
   }
 
   /**
@@ -35,21 +68,22 @@ class WebSocketManager {
    * Connects to WebSocket
    */
   connect(tokenData: TokenData, onLogout: () => void): void {
-    logger.info("Connecting to WebSocket...");
+    this.logger.info("Connecting to WebSocket...");
     this.currentTokenData = tokenData;
     this.onLogoutCallback = onLogout;
 
     if (!tokenData) {
-      uiManager.addLog("System", i18n.t("errors.noToken"));
+      this.uiManager.addLog("System", this.i18n.t("errors.noToken"));
       return;
     }
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${
-      window.location.host
-    }/logs?token=${encodeURIComponent(tokenData.token)}`;
+    const wsUrl = `${protocol}//${window.location.host}/websocket/logs`;
 
-    uiManager.updateConnectionStatus("connecting", i18n.t("status.connecting"));
+    this.uiManager.updateConnectionStatus(
+      "connecting",
+      this.i18n.t("status.connecting"),
+    );
 
     this.ws = new WebSocket(wsUrl);
 
@@ -63,7 +97,7 @@ class WebSocketManager {
    * Disconnects WebSocket
    */
   disconnect(): void {
-    logger.info("Disconnecting WebSocket...");
+    this.logger.info("Disconnecting WebSocket...");
 
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -99,7 +133,7 @@ class WebSocketManager {
     const inputElement = document.querySelector<
       HTMLInputElement | HTMLSelectElement
     >(
-      `#game-settings input[name="${settingName}"], #game-settings select[name="${settingName}"]`
+      `#game-settings input[name="${settingName}"], #game-settings select[name="${settingName}"]`,
     );
 
     if (!inputElement) return;
@@ -119,7 +153,7 @@ class WebSocketManager {
       this.onSettingReceivedCallback(settingName);
     }
 
-    logger.debug(`Updated setting ${settingName} to ${currentValue}`);
+    this.logger.debug(`Updated setting ${settingName} to ${currentValue}`);
   }
 
   /**
@@ -133,7 +167,7 @@ class WebSocketManager {
 
     const mapCount = parseInt(match[1], 10);
 
-    logger.debug(`Maps listed: ${mapCount}`);
+    this.logger.debug(`Maps listed: ${mapCount}`);
 
     // Get log entries from DOM
     const logEntries = this.el.logsContainer.querySelectorAll(".log-entry");
@@ -159,10 +193,10 @@ class WebSocketManager {
       }
     }
 
-    logger.debug("Detected maps:", maps);
+    this.logger.debug("Detected maps:", maps);
 
     // Update map selection UI
-    uiManager.updateMapsList(maps);
+    this.uiManager.updateMapsList(maps);
   }
 
   // ============================================
@@ -170,12 +204,22 @@ class WebSocketManager {
   // ============================================
 
   /**
-   * Handles WebSocket open event
+   * Handles WebSocket open event - sends auth message
    */
   private handleOpen(): void {
-    logger.info("WebSocket connected");
-    uiManager.updateConnectionStatus("connected", i18n.t("status.connected"));
-    uiManager.addLog("System", i18n.t("logs.connectedToServer"));
+    this.logger.info("WebSocket connected, sending auth...");
+
+    if (!this.ws || !this.currentTokenData) {
+      return;
+    }
+
+    // Send auth message with token
+    this.ws.send(
+      JSON.stringify({
+        event: EVENTS.AUTH,
+        token: this.currentTokenData.token,
+      }),
+    );
   }
 
   /**
@@ -185,23 +229,41 @@ class WebSocketManager {
     try {
       const data: WebSocketMessage = JSON.parse(event.data);
 
-      if (data.event === "history") {
-        uiManager.clearLogs();
-        uiManager.addLog(
+      // Handle auth response
+      if (data.event === EVENTS.AUTH && data.status === "ok") {
+        this.logger.info("WebSocket authenticated");
+        this.uiManager.updateConnectionStatus(
+          "connected",
+          this.i18n.t("status.connected"),
+        );
+        this.uiManager.addLog("System", this.i18n.t("logs.connectedToServer"));
+        return;
+      }
+
+      // Handle error
+      if (data.event === EVENTS.ERROR) {
+        this.logger.error("WebSocket error:", data.error);
+        this.uiManager.addLog("System", `ERROR: ${data.error}`);
+        return;
+      }
+
+      if (data.event === EVENTS.HISTORY) {
+        this.uiManager.clearLogs();
+        this.uiManager.addLog(
           "System",
-          i18n.t("logs.historyLoaded", { count: data.logs?.length || 0 })
+          this.i18n.t("logs.historyLoaded", { count: data.logs?.length || 0 }),
         );
 
         data.logs?.forEach((log) => {
-          uiManager.addLog(log.timestamp, log.message);
+          this.uiManager.addLog(log.timestamp, log.message);
         });
-      } else if (data.event === "log" && data.timestamp && data.message) {
-        uiManager.addLog(data.timestamp, data.message);
+      } else if (data.event === EVENTS.LOG && data.timestamp && data.message) {
+        this.uiManager.addLog(data.timestamp, data.message);
         this.updateSettingFromMessage(stripAnsiCodes(data.message));
         this.processMapList(data.message);
       }
     } catch (error) {
-      logger.error("Failed to parse WebSocket message:", error);
+      this.logger.error("Failed to parse WebSocket message:", error);
     }
   }
 
@@ -209,22 +271,25 @@ class WebSocketManager {
    * Handles WebSocket error event
    */
   private handleError(error: Event): void {
-    logger.error("WebSocket error:", error);
-    uiManager.updateConnectionStatus("disconnected", i18n.t("status.error"));
+    this.logger.error("WebSocket error:", error);
+    this.uiManager.updateConnectionStatus(
+      "disconnected",
+      this.i18n.t("status.error"),
+    );
   }
 
   /**
    * Handles WebSocket close event
    */
   private handleClose(event: CloseEvent): void {
-    uiManager.updateConnectionStatus("disconnected", i18n.t("status.disconnected"));
+    this.uiManager.updateConnectionStatus(
+      "disconnected",
+      this.i18n.t("status.disconnected"),
+    );
 
     // Check if it was an auth error
     if (event.code === 1008 || event.code === 4401) {
-      uiManager.addLog(
-        "System",
-        i18n.t("errors.authFailed")
-      );
+      this.uiManager.addLog("System", this.i18n.t("errors.authFailed"));
       setTimeout(() => {
         if (this.onLogoutCallback) {
           this.onLogoutCallback();
@@ -233,17 +298,14 @@ class WebSocketManager {
       return;
     }
 
-    uiManager.addLog("System", i18n.t("logs.disconnected"));
+    this.uiManager.addLog("System", this.i18n.t("logs.disconnected"));
 
     // Auto-reconnect after 3 seconds
     this.reconnectTimer = setTimeout(() => {
       if (this.currentTokenData) {
-        uiManager.addLog("System", i18n.t("logs.reconnecting"));
+        this.uiManager.addLog("System", this.i18n.t("logs.reconnecting"));
         this.connect(this.currentTokenData!, this.onLogoutCallback!);
       }
     }, 3000);
   }
 }
-
-// Export singleton instance
-export const webSocketManager = new WebSocketManager();

@@ -4,21 +4,78 @@ import (
 	netlib "net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// RateLimiter manages rate limiting for different IP addresses
+// tokenMultiplier is the fixed-point precision for atomic token operations
+const tokenMultiplier = 1000
+
+// atomicTokenBucket uses atomic operations for lock-free rate limiting (Vyukov style)
+type atomicTokenBucket struct {
+	// Packed state: upper 32 bits = tokens (fixed-point), lower 32 bits = timestamp
+	state uint64
+}
+
+// newAtomicTokenBucket creates a new atomic token bucket with full capacity
+func newAtomicTokenBucket(capacity float64) *atomicTokenBucket {
+	initialTokens := uint32(capacity * tokenMultiplier)
+	initialTime := uint32(time.Now().Unix())
+	state := (uint64(initialTokens) << 32) | uint64(initialTime)
+	return &atomicTokenBucket{state: state}
+}
+
+// allow checks if a request should be allowed using CAS operations
+func (tb *atomicTokenBucket) allow(rate float64, capacity float64) bool {
+	for {
+		oldState := atomic.LoadUint64(&tb.state)
+		oldTokens := float64(oldState>>32) / tokenMultiplier
+		oldTime := int64(oldState & 0xFFFFFFFF)
+
+		now := time.Now().Unix()
+		elapsed := float64(now - oldTime)
+
+		// Refill tokens based on elapsed time
+		newTokens := oldTokens + elapsed*rate
+		if newTokens > capacity {
+			newTokens = capacity
+		}
+
+		// Check if we can consume a token
+		if newTokens < 1 {
+			return false
+		}
+
+		// Consume one token
+		newTokens -= 1
+
+		// Pack new state
+		newState := (uint64(newTokens*tokenMultiplier) << 32) | uint64(now)
+
+		// CAS operation - retry on contention
+		if atomic.CompareAndSwapUint64(&tb.state, oldState, newState) {
+			return true
+		}
+		// Another goroutine modified state, retry
+	}
+}
+
+// getLastTime returns the last refill time (for cleanup)
+func (tb *atomicTokenBucket) getLastTime() int64 {
+	state := atomic.LoadUint64(&tb.state)
+	return int64(state & 0xFFFFFFFF)
+}
+
+// RateLimiter manages rate limiting for different IP addresses using lock-free operations
 type RateLimiter struct {
-	visitors map[string]*tokenBucket
-	mu       sync.RWMutex
-	rate     float64 // tokens per second
-	capacity float64 // max tokens
+	visitors sync.Map // map[string]*atomicTokenBucket - lock-free reads/writes
+	rate     float64  // tokens per second
+	capacity float64  // max tokens
 }
 
 // NewRateLimiter creates a new rate limiter
 func NewRateLimiter(requestsPerMinute float64) *RateLimiter {
 	rl := &RateLimiter{
-		visitors: make(map[string]*tokenBucket),
 		rate:     requestsPerMinute / 60.0, // convert to per second
 		capacity: requestsPerMinute,
 	}
@@ -29,15 +86,17 @@ func NewRateLimiter(requestsPerMinute float64) *RateLimiter {
 	return rl
 }
 
-// Allow checks if a request from the given IP should be allowed
+// Allow checks if a request from the given IP should be allowed (lock-free)
 func (rl *RateLimiter) Allow(ip string) bool {
-	rl.mu.Lock()
-	bucket, exists := rl.visitors[ip]
-	if !exists {
-		bucket = newTokenBucket(rl.capacity)
-		rl.visitors[ip] = bucket
+	// Try to load existing bucket
+	value, loaded := rl.visitors.LoadOrStore(ip, newAtomicTokenBucket(rl.capacity))
+	bucket := value.(*atomicTokenBucket)
+
+	// If we just created it, it already has full capacity
+	if !loaded {
+		// Consume one token from the new bucket
+		return bucket.allow(rl.rate, rl.capacity)
 	}
-	rl.mu.Unlock()
 
 	return bucket.allow(rl.rate, rl.capacity)
 }
@@ -48,16 +107,16 @@ func (rl *RateLimiter) cleanupVisitors() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		rl.mu.Lock()
-		for ip, bucket := range rl.visitors {
-			bucket.mu.Lock()
+		now := time.Now().Unix()
+		rl.visitors.Range(func(key, value interface{}) bool {
+			bucket := value.(*atomicTokenBucket)
+			lastTime := bucket.getLastTime()
 			// Remove if hasn't been used in 10 minutes
-			if time.Since(bucket.lastRefill) > 10*time.Minute {
-				delete(rl.visitors, ip)
+			if now-lastTime > 600 {
+				rl.visitors.Delete(key)
 			}
-			bucket.mu.Unlock()
-		}
-		rl.mu.Unlock()
+			return true
+		})
 	}
 }
 

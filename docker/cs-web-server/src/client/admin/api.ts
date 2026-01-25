@@ -1,4 +1,4 @@
-import { logger } from "./logger";
+import type { LoggerWrapper } from "./logger";
 
 // ============================================
 // API Client Types
@@ -7,6 +7,7 @@ import { logger } from "./logger";
 export interface ApiResponse<T = unknown> {
   ok: boolean;
   status: number;
+  statusText?: string;
   data?: T;
   error?: string;
 }
@@ -14,42 +15,41 @@ export interface ApiResponse<T = unknown> {
 export interface ApiClientOptions {
   authToken?: string | null;
   baseUrl?: string;
+  logger?: LoggerWrapper;
+  timeout?: number;
 }
 
-interface RequestOptions {
+export interface RequestOptions {
   body?: unknown;
   includeAuth?: boolean;
+  timeout?: number;
 }
+
+// Default timeout in milliseconds
+const DEFAULT_TIMEOUT = 5000;
 
 // ============================================
 // API Client Class
 // ============================================
 
-class ApiClient {
+export class ApiClient {
   private options: ApiClientOptions;
 
   constructor(options: ApiClientOptions = {}) {
-    this.options = options;
+    this.options = { ...options };
   }
 
   /**
    * Sets/updates the client options
    */
-  setOptions(options: Partial<ApiClientOptions>): void {
+  set config(options: Partial<ApiClientOptions>) {
     this.options = { ...this.options, ...options };
   }
 
   /**
-   * Sets the authentication token for requests
+   * Prepares headers for HTTP requests
    */
-  setAuthToken(token: string | null): void {
-    this.options.authToken = token;
-  }
-
-  /**
-   * Gets default headers for requests
-   */
-  private getHeaders(includeAuth: boolean = true): HeadersInit {
+  private prepareRequestHeaders(includeAuth: boolean = true): HeadersInit {
     const headers: HeadersInit = {
       "Content-Type": "application/json",
     };
@@ -62,70 +62,38 @@ class ApiClient {
   }
 
   /**
-   * Common request method for all HTTP methods
+   * Performs HTTP request with timeout
    */
-  private async request<T = unknown>(
+  async request<T = unknown>(
     method: "GET" | "POST" | "PUT" | "DELETE",
     url: string,
     options: RequestOptions = {}
   ): Promise<ApiResponse<T>> {
-    const { body, includeAuth = true } = options;
+    const { body, includeAuth = true, timeout } = options;
+    const requestTimeout = timeout ?? this.options.timeout ?? DEFAULT_TIMEOUT;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
 
     try {
       const fullUrl = this.options.baseUrl ? `${this.options.baseUrl}${url}` : url;
 
       const response = await fetch(fullUrl, {
         method,
-        headers: this.getHeaders(includeAuth),
+        headers: this.prepareRequestHeaders(includeAuth),
         body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
       });
 
       return this.handleResponse<T>(response);
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return this.handleError(new Error("Request timeout"));
+      }
       return this.handleError(error);
+    } finally {
+      clearTimeout(timeoutId);
     }
-  }
-
-  /**
-   * Performs a GET request
-   */
-  async get<T = unknown>(
-    url: string,
-    includeAuth: boolean = true
-  ): Promise<ApiResponse<T>> {
-    return this.request<T>("GET", url, { includeAuth });
-  }
-
-  /**
-   * Performs a POST request
-   */
-  async post<T = unknown>(
-    url: string,
-    body?: unknown,
-    includeAuth: boolean = true
-  ): Promise<ApiResponse<T>> {
-    return this.request<T>("POST", url, { body, includeAuth });
-  }
-
-  /**
-   * Performs a PUT request
-   */
-  async put<T = unknown>(
-    url: string,
-    body?: unknown,
-    includeAuth: boolean = true
-  ): Promise<ApiResponse<T>> {
-    return this.request<T>("PUT", url, { body, includeAuth });
-  }
-
-  /**
-   * Performs a DELETE request
-   */
-  async delete<T = unknown>(
-    url: string,
-    includeAuth: boolean = true
-  ): Promise<ApiResponse<T>> {
-    return this.request<T>("DELETE", url, { includeAuth });
   }
 
   /**
@@ -135,6 +103,7 @@ class ApiClient {
     const result: ApiResponse<T> = {
       ok: response.ok,
       status: response.status,
+      statusText: response.statusText,
     };
 
     // Handle no content response
@@ -154,8 +123,8 @@ class ApiClient {
 
     // Add error message for non-ok responses
     if (!response.ok) {
-      result.error = this.getErrorMessage(response.status);
-      logger.warn(`API error: ${response.status} - ${result.error}`);
+      result.error = response.statusText || `Request failed (${response.status})`;
+      this.options.logger?.warn(`API error: ${response.status} - ${result.error}`);
     }
 
     return result;
@@ -166,7 +135,7 @@ class ApiClient {
    */
   private handleError<T>(error: unknown): ApiResponse<T> {
     const message = error instanceof Error ? error.message : "Network error";
-    logger.error("API request failed:", error);
+    this.options.logger?.error("API request failed:", error);
 
     return {
       ok: false,
@@ -174,31 +143,4 @@ class ApiClient {
       error: message,
     };
   }
-
-  /**
-   * Gets human-readable error message from status code
-   */
-  private getErrorMessage(status: number): string {
-    switch (status) {
-      case 400:
-        return "Bad request";
-      case 401:
-        return "Authentication failed";
-      case 403:
-        return "Insufficient permissions";
-      case 404:
-        return "Not found";
-      case 429:
-        return "Too many requests";
-      case 500:
-        return "Server error";
-      case 503:
-        return "Service unavailable";
-      default:
-        return `Request failed (${status})`;
-    }
-  }
 }
-
-// Export singleton instance
-export const apiClient = new ApiClient();

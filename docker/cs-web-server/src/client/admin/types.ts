@@ -21,7 +21,9 @@ export interface JWTPayload {
 }
 
 export interface WebSocketMessage {
-  event: "history" | "log";
+  event: "v1:auth" | "v1:error" | "v1:history" | "v1:log";
+  status?: string;
+  error?: string;
   logs?: LogEntry[];
   timestamp?: string;
   message?: string;

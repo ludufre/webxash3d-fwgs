@@ -25,6 +25,13 @@ var adminUsername string
 var passwordSalt string  // Random salt for password hashing
 var adminLogLevel string // Log level for admin panel (debug, info, warn, error)
 
+// WebSocket logs event version constants
+const (
+	LogsEventVersion = "v1"
+	LogsEventHistory = LogsEventVersion + ":history"
+	LogsEventLog     = LogsEventVersion + ":log"
+)
+
 // checkCredentials validates both username and password hash using constant-time comparison
 func checkCredentials(username, passwordHash string) bool {
 	// Validate username
@@ -142,42 +149,64 @@ func logsWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate JWT token (support both query param and header)
-	tokenString := r.URL.Query().Get("token")
-	if tokenString == "" {
-		tokenString = extractToken(r)
-	}
-
-	if tokenString == "" {
-		http.Error(w, "Missing authorization token", http.StatusUnauthorized)
+	// Upgrade to WebSocket first (auth will happen via first message)
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Errorf("Failed to upgrade HTTP to WebSocket for logs: %v", err)
 		return
 	}
 
-	claims, err := validateToken(tokenString)
+	// Set read deadline for auth message (5 seconds)
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	// Read first message which should contain the auth token
+	var authMsg struct {
+		Event string `json:"event"`
+		Token string `json:"token"`
+	}
+	if err := conn.ReadJSON(&authMsg); err != nil {
+		log.Warnf("Failed to read auth message from %s: %v", r.RemoteAddr, err)
+		conn.WriteJSON(map[string]string{"event": "v1:error", "error": "Failed to read auth message"})
+		conn.Close()
+		return
+	}
+
+	if authMsg.Event != "v1:auth" || authMsg.Token == "" {
+		log.Warnf("Invalid auth message from %s", r.RemoteAddr)
+		conn.WriteJSON(map[string]string{"event": "v1:error", "error": "Invalid auth message"})
+		conn.Close()
+		return
+	}
+
+	// Validate JWT token
+	claims, err := validateToken(authMsg.Token)
 	if err != nil {
 		log.Warnf("Invalid token for WebSocket from %s: %v", r.RemoteAddr, err)
-		http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+		conn.WriteJSON(map[string]string{"event": "v1:error", "error": "Invalid or expired token"})
+		conn.Close()
 		return
 	}
 
 	if claims.Role != "admin" {
-		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		conn.WriteJSON(map[string]string{"event": "v1:error", "error": "Insufficient permissions"})
+		conn.Close()
 		return
 	}
 
 	// Verify username in token matches configured username
 	if claims.Username != adminUsername {
 		log.Warnf("Token username mismatch for WebSocket from %s: expected %s, got %s", r.RemoteAddr, adminUsername, claims.Username)
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
+		conn.WriteJSON(map[string]string{"event": "v1:error", "error": "Invalid token"})
+		conn.Close()
 		return
 	}
 
-	// Upgrade to WebSocket
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Errorf("Failed to upgrade HTTP to WebSocket for logs: %v", err)
-		return
-	}
+	// Auth successful - send confirmation
+	conn.WriteJSON(map[string]string{"event": "v1:auth", "status": "ok"})
+
+	// Reset read deadline for normal operation
+	conn.SetReadDeadline(time.Time{})
+
 	defer conn.Close()
 
 	// Send history to client
@@ -226,7 +255,7 @@ func logsWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 					Timestamp string `json:"timestamp"`
 					Message   string `json:"message"`
 				}{
-					Event:     "log",
+					Event:     LogsEventLog,
 					Timestamp: time.Now().Format(time.RFC3339),
 					Message:   message,
 				}

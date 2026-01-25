@@ -32,6 +32,14 @@ var (
 const DefaultSignalsCount = 5
 const messageSize = 1024 * 8
 
+// WebSocket event version constants
+const (
+	EventVersion   = "v1"
+	EventOffer     = EventVersion + ":offer"
+	EventAnswer    = EventVersion + ":answer"
+	EventCandidate = EventVersion + ":candidate"
+)
+
 type websocketMessage struct {
 	Event string          `json:"event"`
 	Data  json.RawMessage `json:"data"`
@@ -162,7 +170,7 @@ func signalPeerConnections() { // nolint
 				return true
 			}
 
-			if err = peerConnections[i].websocket.WriteJSON("offer", offer); err != nil {
+			if err = peerConnections[i].websocket.WriteJSON(EventOffer, offer); err != nil {
 				return true
 			}
 		}
@@ -332,7 +340,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 		// If you are serializing a candidate make sure to use ToJSON
 		// Using Marshal will result in errors around `sdpMid`
 
-		if writeErr := c.WriteJSON("candidate", i.ToJSON()); writeErr != nil {
+		if writeErr := c.WriteJSON(EventCandidate, i.ToJSON()); writeErr != nil {
 			log.Errorf("Failed to write JSON: %v", writeErr)
 		}
 	})
@@ -405,7 +413,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 		}
 
 		switch message.Event {
-		case "candidate":
+		case EventCandidate:
 			candidate := webrtc.ICECandidateInit{}
 			if err := json.Unmarshal(message.Data, &candidate); err != nil {
 				log.Errorf("Failed to unmarshal json to candidate: %v", err)
@@ -418,7 +426,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 
 				return
 			}
-		case "answer":
+		case EventAnswer:
 			answer := webrtc.SessionDescription{}
 			if err := json.Unmarshal(message.Data, &answer); err != nil {
 				log.Errorf("Failed to unmarshal json to answer: %v", err)
