@@ -99,11 +99,6 @@ func runSFU() {
 		}
 	}
 
-	ip, ok := os.LookupEnv("IP")
-	if ok {
-		settingEngine.SetNAT1To1IPs([]string{ip}, webrtc.ICECandidateTypeHost)
-	}
-
 	m := &webrtc.MediaEngine{}
 	err := m.RegisterDefaultCodecs()
 	if err != nil {
