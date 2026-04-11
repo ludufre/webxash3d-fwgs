@@ -279,7 +279,11 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 	defer c.Close() //nolint
 
 	// Create new PeerConnection
-	peerConnection, err := api.NewPeerConnection(webrtc.Configuration{})
+	peerConnection, err := api.NewPeerConnection(webrtc.Configuration{
+		ICEServers: []webrtc.ICEServer{
+			{URLs: []string{"stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"}},
+		},
+	})
 	if err != nil {
 		log.Errorf("Failed to creates a PeerConnection: %v", err)
 
@@ -653,11 +657,6 @@ func runSFU() {
 			}
 			settingEngine.SetICEUDPMux(udpMux)
 		}
-	}
-
-	ip, ok := os.LookupEnv("IP")
-	if ok {
-		settingEngine.SetNAT1To1IPs([]string{ip}, webrtc.ICECandidateTypeHost)
 	}
 
 	m := &webrtc.MediaEngine{}
