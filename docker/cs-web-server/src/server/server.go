@@ -10,17 +10,14 @@ type Server struct {
 }
 
 var (
-	disabledXPoweredBy = false
-	xPoweredByValue    = "yohimik"
-
 	// Rate limiters
 	loginRateLimiter *RateLimiter
 	rconRateLimiter  *RateLimiter
 )
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if !disabledXPoweredBy {
-		w.Header().Set("X-Powered-By", xPoweredByValue)
+	if !appConfig.Server.DisableXPoweredBy {
+		w.Header().Set("X-Powered-By", appConfig.Server.XPoweredByValue)
 	}
 	switch r.URL.Path {
 	// WebRTC WebSocket - no version needed (protocol-level)

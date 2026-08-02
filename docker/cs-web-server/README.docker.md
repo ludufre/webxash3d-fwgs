@@ -104,7 +104,53 @@ Then open `http://<your-server-ip>:27016` in your browser!
 | `X_POWERED_BY_VALUE`   | Custom value for `X-Powered-By` header if not disabled                    | `CS 1.6 Web Server`.     |
 | `ADMIN_PANEL_USER`     | Username for [Admin Panel](#-admin-panel) access (leave empty to disable) | `admin`                  |
 | `ADMIN_PANEL_PASSWORD` | Password for [Admin Panel](#-admin-panel) access (leave empty to disable) | `<strong_password>`      |
-| `ADMIN_LOG_LEVEL`      | Log level for Admin Panel console (`debug`, `info`, `warn`, `error`, `silent`) | `info`               |
+| `CLIENT_LOG_LEVEL`      | Log level for browser clients (game + Admin Panel), served via `GET /v1/config` (`trace`, `debug`, `info`, `warn`, `error`, `fatal`, `silent`) | `info`               |
+| `ADDR`                 | HTTP listen address                                                                                                                               | `:27016`            |
+| `LOG_LEVEL`            | Server log level (`trace`, `debug`, `info`, `warn`, `error`, `fatal`)                                                                             | `info`              |
+| `LOG_FORMAT`           | Server log output: `pretty` (console) or `json` (one structured record per line)                                                                   | `json`              |
+| `ADMIN_TOKEN_TTL_HOURS`  | Admin session token lifetime, in hours                                                                                                          | `24`                |
+| `ADMIN_LOGIN_RATE_LIMIT` | Login attempts allowed per minute                                                                                                               | `5`                 |
+| `ADMIN_RCON_RATE_LIMIT`  | RCON commands allowed per minute                                                                                                                | `30`                |
+| `ADMIN_LOG_BUFFER`       | Log scrollback entries kept for newly connected panels                                                                                          | `1000`              |
+| `CONFIG_FILE`          | Config file(s) to load, comma-separated. Defaults to probing `config.yml`/`.yaml`/`.json`/`.toml`                                                  | `config.yml`        |
+
+### Configuration Files
+
+Every variable above can instead live in a configuration file. Loading is handled by
+[configor](https://github.com/jinzhu/configor), so YAML, JSON and TOML all work, and
+values resolve in this order — **environment variables always win**:
+
+1. the `default` declared on the field
+2. the configuration file
+3. the environment variable
+
+`config.yml`, `config.yaml`, `config.json` and `config.toml` are picked up automatically
+from the working directory; set `CONFIG_FILE` to load something else (comma-separated for
+several). configor also merges an environment overlay when `CONFIGOR_ENV` is set — with
+`CONFIGOR_ENV=production`, `config.production.yml` is applied on top of `config.yml`.
+
+See [`config.example.yml`](./config.example.yml) for a fully commented file.
+
+List and map values accept either form. In a file they are native YAML:
+
+```yaml
+engine:
+  arguments: ["-windowed", "-console"]
+libraries:
+  files_map:
+    xash.wasm: /xash.wasm
+```
+
+while the environment keeps the comma-separated form:
+
+```
+ENGINE_ARGS="-windowed,-console"
+FILES_MAP="xash.wasm:/xash.wasm"
+```
+
+Unknown keys in a config file are rejected, so typos surface at startup rather than
+silently doing nothing. `CONFIGOR_DEBUG_MODE=1` or `CONFIGOR_VERBOSE_MODE=1` prints which
+source each field was resolved from.
 
 ### Engine Configuration
 
@@ -143,7 +189,7 @@ This image includes an optional **Admin Panel** for remote administration (RCON,
 environment:
   ADMIN_PANEL_USER: "admin"
   ADMIN_PANEL_PASSWORD: "<strong_password>"
-  ADMIN_LOG_LEVEL: "info"  # optional: debug, info, warn, error, silent
+  CLIENT_LOG_LEVEL: "info"  # optional: trace, debug, info, warn, error, fatal, silent
 ```
 
 Access the admin panel at `http://<your-public-ip>:<your-port>/admin`.

@@ -2,7 +2,15 @@
  * Server Admin Panel - Custom Styles
  * Base theme: cs16.css (https://github.com/ekmas/cs16.css)
  * This file extends cs16.css with admin panel specific layouts and features
-  */
+ *
+ * Units: em only, no px.
+ * Values are relative to the font-size in scope, so the divisor differs per
+ * rule: 16px root by default, but 1em is 12px inside .cs-btn/.cs-input/
+ * .cs-select and .settings-grid .col, 14px inside #logs-container and
+ * .settings-grid, 11px inside .username-info/.token-info and 10px inside
+ * .status and .language-selector. Font sizes are relative to the *parent*,
+ * which is why nested overrides below re-normalise to 1em.
+ */
 
 /* Override cs16.css base font and sizes */
 body {
@@ -13,7 +21,7 @@ body {
 .cs-tabs .label,
 .cs-input,
 .cs-select {
-  font-size: 12px;
+  font-size: 0.75em; /* 12px under the 16px root */
 }
 
 :root {
@@ -40,7 +48,7 @@ body {
 
 body {
   min-height: 100vh;
-  padding: 32px;
+  padding: 2em;
 }
 
 body::before {
@@ -50,7 +58,7 @@ body::before {
   background-image: url("../logo.png");
   background-position: right 5% bottom 5%;
   background-repeat: no-repeat;
-  background-size: 420px;
+  background-size: 26.25em;
   opacity: 0.08;
   pointer-events: none;
   content: "";
@@ -64,9 +72,9 @@ body::before {
   background-image: repeating-linear-gradient(
     180deg,
     var(--overlay-scanline-transparent) 0,
-    var(--overlay-scanline-transparent) 2px,
-    var(--overlay-scanline) 2px,
-    var(--overlay-scanline) 4px
+    var(--overlay-scanline-transparent) 0.125em,
+    var(--overlay-scanline) 0.125em,
+    var(--overlay-scanline) 0.25em
   );
   opacity: 0.3;
   pointer-events: none;
@@ -77,7 +85,7 @@ body::before {
 .desktop {
   position: relative;
   z-index: 10;
-  width: min(1200px, 100%);
+  width: min(75em, 100%);
   margin: 0 auto;
 }
 
@@ -85,14 +93,14 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 64px);
+  min-height: calc(100vh - 4em);
 }
 
 .desktop {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-bottom: 32px;
+  gap: 1em;
+  padding-bottom: 2em;
 }
 
 /* Panel windows (CS 1.6 dialog style) */
@@ -103,52 +111,53 @@ body::before {
   min-width: 0;
   max-width: none;
   margin: 0;
-  padding: 4px;
+  padding: 0.25em;
 }
 
+/* .text is 12px (see the cs16 override above), so 1em here is 12px */
 .panel-window .heading .text {
-  letter-spacing: 1px;
+  letter-spacing: 0.0833em;
   text-transform: uppercase;
 }
 
 .window-actions {
   display: flex;
-  gap: 4px;
+  gap: 0.25em;
 }
 
 .window-actions .cs-btn.close {
-  width: 18px;
-  height: 18px;
+  width: 1.5em;
+  height: 1.5em;
 }
 
 .panel-window .content {
-  padding: 10px;
+  padding: 0.625em;
 }
 
 /* Authentication window */
 .auth-window {
-  max-width: 400px;
+  max-width: 25em;
 }
 
 .auth-window .content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
+  gap: 0.75em;
+  padding: 1.25em;
 }
 
 .auth-window h1 {
-  margin-bottom: 4px;
+  margin-bottom: 0.3333em;
   color: var(--accent);
-  font-size: 12px;
-  letter-spacing: 1px;
+  font-size: 0.75em;
+  letter-spacing: 0.0833em;
   text-transform: uppercase;
 }
 
 #auth-form {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0.625em;
 }
 
 #auth-form .cs-input {
@@ -160,21 +169,21 @@ body::before {
 }
 
 .error {
-  min-height: 16px;
+  min-height: 1.1429em;
   color: var(--error-light);
-  font-size: 14px;
-  letter-spacing: 1px;
+  font-size: 0.875em;
+  letter-spacing: 0.0714em;
 }
 
 /* Admin header */
 .admin-header {
-  margin-bottom: 16px;
+  margin-bottom: 1em;
 }
 
 .admin-header h1 {
   color: var(--text);
-  font-size: 12px;
-  letter-spacing: 1px;
+  font-size: 0.75em;
+  letter-spacing: 0.0833em;
   text-transform: uppercase;
 }
 
@@ -183,34 +192,34 @@ body::before {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 15px 10px;
+  gap: 1em;
+  padding: 0.9375em 0.625em;
 }
 
 .session-copy .subtitle {
-  margin-top: 2px;
+  margin-top: 0.1667em;
   color: var(--text-3);
-  font-size: 12px;
-  letter-spacing: 1px;
+  font-size: 0.75em;
+  letter-spacing: 0.0833em;
 }
 
 .header-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 0.75em;
 }
 
 .username-info,
 .token-info {
-  border: 1px solid;
+  border: 0.0909em solid;
   border-color: var(--border-dark) var(--border-light) var(--border-light)
     var(--border-dark);
-  padding: 4px 8px 3px;
+  padding: 0.3636em 0.7273em 0.2727em;
   background-color: var(--secondary-bg);
-  font-size: 11px;
-  letter-spacing: 1px;
-  line-height: 15px;
+  font-size: 0.6875em;
+  letter-spacing: 0.0909em;
+  line-height: 1.3636em;
 }
 
 .token-info {
@@ -220,11 +229,11 @@ body::before {
 /* Content grid layout */
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 22.5em;
+  gap: 1em;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 68.75em) {
   .content-grid {
     grid-template-columns: 1fr;
   }
@@ -235,31 +244,32 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 0.625em;
 }
 
 .section-header h2,
 .command-window h2 {
   color: var(--text-3);
-  font-size: 12px;
-  letter-spacing: 1px;
-  line-height: 15px;
+  font-size: 0.75em;
+  letter-spacing: 0.0833em;
+  line-height: 1.25em;
   text-transform: uppercase;
 }
 
 .status {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 10px;
-  letter-spacing: 1px;
-  line-height: 15px;
+  gap: 0.6em;
+  font-size: 0.625em;
+  letter-spacing: 0.1em;
+  line-height: 1.5em;
 }
 
+/* Nested in .status, so 1em is 10px here */
 .status-dot {
-  width: 10px;
-  height: 10px;
-  border: 1px solid;
+  width: 1em;
+  height: 1em;
+  border: 0.1em solid;
   border-color: var(--border-dark) var(--border-light) var(--border-light)
     var(--border-dark);
   background: var(--text-3);
@@ -274,22 +284,23 @@ body::before {
 }
 
 #logs-container {
-  height: 520px;
-  border: 1px solid;
+  height: 37.1429em;
+  border: 0.0714em solid;
   border-color: var(--border-dark) var(--border-light) var(--border-light)
     var(--border-dark);
-  padding: 8px;
+  padding: 0.5714em;
   background: var(--secondary-bg);
   color: var(--secondary-text);
   font-family: "Lucida Console", "Courier New", monospace;
-  font-size: 14px;
+  font-size: 0.875em;
   line-height: 1.4;
   overflow-y: auto;
 }
 
+/* Nested in #logs-container, so 1em is 14px here */
 .log-entry {
-  border-bottom: 1px solid var(--log-border);
-  padding: 3px 0;
+  border-bottom: 0.0714em solid var(--log-border);
+  padding: 0.2143em 0;
 }
 
 .log-entry:last-child {
@@ -297,34 +308,35 @@ body::before {
 }
 
 .log-timestamp {
-  margin-right: 6px;
+  margin-right: 0.4286em;
   color: var(--text-3);
 }
 
 /* Command center window */
 .command-window .content {
-  padding: 15px 10px;
+  padding: 0.9375em 0.625em;
 }
 
 #command-form {
   display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  margin-bottom: 12px;
+  gap: 0.5em;
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
 }
 
 #command-form .cs-input {
   flex: 1;
 }
 
+/* .cs-btn is 12px, so 1em is 12px here */
 #command-form .cs-btn {
-  min-width: 100px;
+  min-width: 8.3333em;
 }
 
 .quick-commands {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 0.5em;
 }
 
 .quick-cmd {
@@ -333,9 +345,9 @@ body::before {
 
 /* Usar os estilos de scrollbar padrão do cs16.css */
 
-@media (max-width: 768px) {
+@media (max-width: 48em) {
   body {
-    padding: 16px;
+    padding: 1em;
   }
 
   #command-form {
@@ -349,20 +361,20 @@ body::before {
 
 /* Settings Grid */
 .settings-panel {
-  padding: 8px !important;
+  padding: 0.5em !important;
 }
 
 .settings-grid {
   display: grid;
   grid-template-columns: 1fr 45%;
-  row-gap: 4px;
-  max-height: 504px;
-  margin-bottom: 8px;
-  border: 1px solid;
+  row-gap: 0.2857em;
+  max-height: 36em;
+  margin-bottom: 0.5714em;
+  border: 0.0714em solid;
   border-color: var(--border-dark) var(--border-light) var(--border-light)
     var(--border-dark);
-  padding: 8px;
-  font-size: 14px;
+  padding: 0.5714em;
+  font-size: 0.875em;
   overflow-y: auto;
 }
 
@@ -379,11 +391,21 @@ body::before {
   display: inline-block;
 }
 
+/* Nested in .settings-grid (14px), so 0.8571em lands back on 12px */
 .settings-grid .col {
   align-self: center;
   padding: 0;
-  font-size: 12px;
+  font-size: 0.8571em;
   text-align: left;
+}
+
+/*
+ * Controls sit inside .col, which is already 12px. Without this they would
+ * inherit the 0.75em from the cs16 override and compound down to 9px.
+ */
+.settings-grid .cs-input,
+.settings-grid .cs-select {
+  font-size: 1em;
 }
 
 .settings-grid input,
@@ -392,10 +414,11 @@ body::before {
   min-width: unset;
 }
 
+/* .cs-select is 12px, so 1em is 12px here */
 #maps-select {
   width: 100%;
-  height: 456px;
-  margin-bottom: 8px;
+  height: 38em;
+  margin-bottom: 0.6667em;
 }
 
 /* Settings Loading State */
@@ -404,11 +427,15 @@ body::before {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: 12.5em;
+  padding: 1.25em;
+  text-align: center;
 }
 
 .settings-status p {
-  letter-spacing: 1px;
+  margin-bottom: 0.9375em;
+  color: var(--accent);
+  letter-spacing: 0.0625em;
 }
 
 /* Ocultar linhas de campos que não receberam dados */
@@ -419,8 +446,8 @@ body::before {
 /* Language Selector */
 .language-selector-container {
   position: absolute;
-  top: 16px;
-  right: 16px;
+  top: 1em;
+  right: 1em;
   z-index: 1000;
 }
 
@@ -428,19 +455,20 @@ body::before {
   position: fixed;
 }
 
+/* Sets its own 10px, so the lengths below are relative to that */
 .language-selector {
-  min-width: 180px;
-  padding: 4px 20px 4px 6px;
-  background-position: right 5px top 50%;
-  background-size: 6px auto;
-  font-size: 10px;
+  min-width: 18em;
+  padding: 0.4em 2em 0.4em 0.6em;
+  background-position: right 0.5em top 50%;
+  background-size: 0.6em auto;
+  font-size: 0.625em;
 }
 
 .language-selector option {
-  padding: 4px;
+  padding: 0.4em;
 }
 
 /* Admin header language selector */
 .header-controls .language-selector {
-  min-width: 150px;
+  min-width: 15em;
 }

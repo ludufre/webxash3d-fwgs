@@ -14,7 +14,10 @@
   },
   "session": {
     "adminSession": "Сессия Админа",
-    "tokenExpiry": "Токен истекает через {minutes}м"
+    "tokenExpiry": "Токен истекает через {minutes}м",
+    "loggedInAs": "Вы вошли как: {username}",
+    "tokenExpired": "Срок действия токена истёк",
+    "tokenExpiryHours": "Токен истекает через {hours}ч {minutes}м"
   },
   "console": {
     "serverConsole": "Консоль Сервера",
@@ -79,7 +82,8 @@
     "kickIdlers": "Выгонять бездельников и TKеров",
     "hostageKillsKick": "Выгнать после (x) убитых заложников",
     "allowFlashlight": "Разрешить фонарик",
-    "autocrosshair": "Автоприцел"
+    "autocrosshair": "Автоприцел",
+    "loadFailed": "Не удалось загрузить настройки"
   },
   "errors": {
     "usernameRequired": "Имя пользователя обязательно",

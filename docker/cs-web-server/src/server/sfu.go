@@ -2,106 +2,53 @@ package main
 
 import (
 	"net/http"
-	"os"
-	"strconv"
 	"time"
+
 	"github.com/gorilla/websocket"
-	"github.com/jinzhu/configor"
 	"github.com/pion/ice/v4"
 	"github.com/pion/interceptor"
 	"github.com/pion/webrtc/v4"
 )
 
-var addr = ":27016"
-
 func init() {
-	// Load server configuration
-	disable, _ := os.LookupEnv("DISABLE_X_POWERED_BY")
-	if disable == "true" {
-		disabledXPoweredBy = true
-	}
-	xPoweredValue, has := os.LookupEnv("X_POWERED_BY_VALUE")
-	if has {
-		xPoweredByValue = xPoweredValue
-	}
+	// Configuration is already resolved: appConfig is a package variable, so
+	// it is initialised before any init function runs.
+	flushConfigWarnings()
 
-	// Load admin credentials
-	adminUsername = os.Getenv("ADMIN_PANEL_USER")
-	if adminUsername == "" {
-		adminUsername = "admin"
-		log.Warnf("ADMIN_PANEL_USER not set, using default: 'admin'")
-	}
-
-	adminPassword = os.Getenv("ADMIN_PANEL_PASSWORD")
-	if adminPassword == "" {
-		log.Warnf("ADMIN_PANEL_PASSWORD not set, admin panel will be disabled")
-	} else {
-		// Generate JWT secret
+	if appConfig.Admin.Enabled() {
 		generateJWTSecret()
-
-		// Generate password salt
 		generatePasswordSalt()
 
-		// Initialize rate limiters
-		loginRateLimiter = NewRateLimiter(5)  // 5 login attempts per minute
-		rconRateLimiter = NewRateLimiter(30)  // 30 RCON commands per minute
-		log.Infof("JWT authentication enabled for user: %s", adminUsername)
-	}
+		loginRateLimiter = NewRateLimiter(appConfig.Admin.LoginRateLimit)
+		rconRateLimiter = NewRateLimiter(appConfig.Admin.RconRateLimit)
 
-	// Load admin panel log level (default: info)
-	adminLogLevel = os.Getenv("ADMIN_LOG_LEVEL")
-	if adminLogLevel == "" {
-		adminLogLevel = "info"
-	}
-	// Validate log level
-	switch adminLogLevel {
-	case "debug", "info", "warn", "error", "silent":
-		// Valid log level
-	default:
-		log.Warnf("Invalid ADMIN_LOG_LEVEL '%s', using default: 'info'", adminLogLevel)
-		adminLogLevel = "info"
+		log.Info().Str("username", appConfig.Admin.Username).Msg("jwt authentication enabled")
 	}
 
 	// Initialize log streaming
-	logBuffer = NewCircularBuffer(1000)
+	logBuffer = NewCircularBuffer(appConfig.Admin.LogBufferEntries)
 	logClients = make(map[*websocket.Conn]chan string)
 	logBroadcast = make(chan string, 256)
 
 	// Start log broadcast goroutine
 	go logBroadcaster()
-
-	// Load engine configuration using configor
-	if err := configor.Load(&appConfig); err != nil {
-		log.Errorf("Failed to load configuration: %v", err)
-		panic(err)
-	}
-
-	// Build and serialize the engine config JSON
-	if err := buildEngineConfigJSON(); err != nil {
-		log.Errorf("Failed to serialize config: %v", err)
-		panic(err)
-	}
 }
 
 func runSFU() {
 	settingEngine := webrtc.SettingEngine{}
 	settingEngine.DetachDataChannels()
 
-	port, ok := os.LookupEnv("PORT")
-	if ok {
-		p, err := strconv.Atoi(port)
-		if err == nil {
-			udpMux, err := ice.NewMultiUDPMuxFromPort(p)
-			if err != nil {
-				panic(err)
-			}
-			settingEngine.SetICEUDPMux(udpMux)
+	if appConfig.Server.Port > 0 {
+		udpMux, err := ice.NewMultiUDPMuxFromPort(appConfig.Server.Port)
+		if err != nil {
+			panic(err)
 		}
+		settingEngine.SetICEUDPMux(udpMux)
 	}
 
-	ip, ok := os.LookupEnv("IP")
-	if ok {
-		settingEngine.SetNAT1To1IPs([]string{ip}, webrtc.ICECandidateTypeHost)
+	if appConfig.Server.IP != "" {
+		settingEngine.SetNAT1To1IPs(
+			[]string{appConfig.Server.IP}, webrtc.ICECandidateTypeHost)
 	}
 
 	m := &webrtc.MediaEngine{}
@@ -130,7 +77,8 @@ func runSFU() {
 	}()
 
 	// start HTTP server
-	if err := http.ListenAndServe(addr, &Server{}); err != nil { //nolint: gosec
-		log.Errorf("Failed to start http server: %v", err)
+	log.Info().Str("addr", appConfig.Server.Addr).Msg("http server listening")
+	if err := http.ListenAndServe(appConfig.Server.Addr, &Server{}); err != nil { //nolint: gosec
+		log.Error().Err(err).Str("addr", appConfig.Server.Addr).Msg("http server stopped")
 	}
 }

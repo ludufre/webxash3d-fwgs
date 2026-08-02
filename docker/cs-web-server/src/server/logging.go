@@ -129,13 +129,7 @@ func sendHistory(conn *websocket.Conn) error {
 	}
 
 	// Convert to JSON message
-	historyMsg := struct {
-		Event string      `json:"event"`
-		Logs  []*LogEntry `json:"logs"`
-	}{
-		Event: LogsEventHistory,
-		Logs:  history,
-	}
+	historyMsg := [2]any{LogsEventHistory, history}
 
 	return conn.WriteJSON(historyMsg)
 }

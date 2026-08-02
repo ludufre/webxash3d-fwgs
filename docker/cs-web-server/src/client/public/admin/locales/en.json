@@ -14,7 +14,10 @@
   },
   "session": {
     "adminSession": "Admin Session",
-    "tokenExpiry": "Token expires in {minutes}m"
+    "tokenExpiry": "Token expires in {minutes}m",
+    "loggedInAs": "Logged in as: {username}",
+    "tokenExpired": "Token expired",
+    "tokenExpiryHours": "Token expires in {hours}h {minutes}m"
   },
   "console": {
     "serverConsole": "Server Console",
@@ -79,7 +82,8 @@
     "kickIdlers": "Kick idlers and TKers",
     "hostageKillsKick": "Kick after (x) hostage kills",
     "allowFlashlight": "Allow flashlight",
-    "autocrosshair": "Autocrosshair"
+    "autocrosshair": "Autocrosshair",
+    "loadFailed": "Failed to load settings"
   },
   "errors": {
     "usernameRequired": "Username is required",

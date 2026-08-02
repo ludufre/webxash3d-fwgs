@@ -126,7 +126,7 @@ func (rl *RateLimiter) Middleware(next http.HandlerFunc) http.HandlerFunc {
 		ip := getClientIP(r)
 
 		if !rl.Allow(ip) {
-			log.Warnf("Rate limit exceeded for IP: %s", ip)
+			log.Warn().Str("ip", ip).Msg("rate limit exceeded")
 			http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
 			return
 		}

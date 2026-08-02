@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -13,8 +12,9 @@ import (
 )
 
 var (
-	jwtSecret     []byte
-	jwtExpiration = 24 * time.Hour
+	jwtSecret []byte
+	// jwtExpiration is how long an admin session token stays valid.
+	jwtExpiration = time.Duration(appConfig.Admin.TokenTTLHours) * time.Hour
 )
 
 // Claims represents the JWT claims
@@ -34,7 +34,6 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token     string `json:"token"`
 	ExpiresIn int64  `json:"expiresIn"` // seconds
-	LogLevel  string `json:"logLevel"`  // admin panel log level
 }
 
 // SaltResponse represents the salt response
@@ -49,7 +48,7 @@ func generateJWTSecret() {
 		panic("Failed to generate JWT secret: " + err.Error())
 	}
 	jwtSecret = secret
-	log.Infof("JWT secret generated: %s", base64.StdEncoding.EncodeToString(secret))
+	log.Info().Msg("JWT secret generated")
 }
 
 // generatePasswordSalt generates a random salt for password hashing
@@ -59,7 +58,7 @@ func generatePasswordSalt() {
 		panic("Failed to generate password salt: " + err.Error())
 	}
 	passwordSalt = hex.EncodeToString(saltBytes)
-	log.Infof("Generated password salt (64 hex chars)")
+	log.Info().Int("bytes", len(saltBytes)).Msg("password salt generated")
 }
 
 // generateToken creates a new JWT token for authenticated users
@@ -109,7 +108,7 @@ func extractToken(r *http.Request) string {
 // loginHandler handles authentication and returns a JWT token
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if admin panel is enabled
-	if adminPassword == "" || adminUsername == "" {
+	if !appConfig.Admin.Enabled() {
 		http.Error(w, "Admin panel is disabled (ADMIN_PANEL_USER and ADMIN_PANEL_PASSWORD must be set)", http.StatusServiceUnavailable)
 		return
 	}
@@ -140,7 +139,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Check credentials with constant-time hash comparison
 	if !checkCredentials(req.Username, req.PasswordHash) {
-		log.Warnf("Failed login attempt from %s with username: %s", r.RemoteAddr, req.Username)
+		log.Warn().Str("remote", r.RemoteAddr).Str("username", req.Username).Msg("failed login attempt")
 		http.Error(w, "Invalid username or password", http.StatusUnauthorized)
 		return
 	}
@@ -148,7 +147,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	// Generate JWT token with username
 	token, err := generateToken(req.Username)
 	if err != nil {
-		log.Errorf("Failed to generate token: %v", err)
+		log.Error().Err(err).Msg("failed to generate token")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -158,16 +157,15 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(LoginResponse{
 		Token:     token,
 		ExpiresIn: int64(jwtExpiration.Seconds()),
-		LogLevel:  adminLogLevel,
 	})
 
-	log.Infof("Successful login from %s as user: %s", r.RemoteAddr, req.Username)
+	log.Info().Str("remote", r.RemoteAddr).Str("username", req.Username).Msg("login successful")
 }
 
 // saltHandler returns the password salt for client-side hashing
 func saltHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if admin panel is enabled
-	if adminPassword == "" || adminUsername == "" {
+	if !appConfig.Admin.Enabled() {
 		http.Error(w, "Admin panel is disabled (ADMIN_PANEL_USER and ADMIN_PANEL_PASSWORD must be set)", http.StatusServiceUnavailable)
 		return
 	}
@@ -189,7 +187,7 @@ func saltHandler(w http.ResponseWriter, r *http.Request) {
 func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Check if admin panel is enabled
-		if adminPassword == "" || adminUsername == "" {
+		if !appConfig.Admin.Enabled() {
 			http.Error(w, "Admin panel is disabled (ADMIN_PANEL_USER and ADMIN_PANEL_PASSWORD must be set)", http.StatusServiceUnavailable)
 			return
 		}
@@ -204,7 +202,7 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// Validate token
 		claims, err := validateToken(tokenString)
 		if err != nil {
-			log.Warnf("Invalid token from %s: %v", r.RemoteAddr, err)
+			log.Warn().Str("remote", r.RemoteAddr).Err(err).Msg("invalid token")
 			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 			return
 		}
@@ -216,8 +214,8 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// Verify username in token matches configured username
-		if claims.Username != adminUsername {
-			log.Warnf("Token username mismatch from %s: expected %s, got %s", r.RemoteAddr, adminUsername, claims.Username)
+		if claims.Username != appConfig.Admin.Username {
+			log.Warn().Str("remote", r.RemoteAddr).Str("expected", appConfig.Admin.Username).Str("got", claims.Username).Msg("token username mismatch")
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}

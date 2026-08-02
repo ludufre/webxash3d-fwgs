@@ -2,12 +2,9 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
-	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -43,46 +40,25 @@ const (
 )
 
 const DefaultPongWaitSeconds = 60
-
-func parsePongWait() time.Duration {
-	v := os.Getenv("PONG_WAIT_SECONDS")
-	s, err := strconv.Atoi(v)
-	if err != nil {
-		return DefaultPongWaitSeconds
-	}
-	if s < 1 {
-		return DefaultPongWaitSeconds
-	}
-	return time.Duration(s)
-}
-
 const DefaultWriteWaitSeconds = 10
 
-func parseWriteWait() time.Duration {
-	v := os.Getenv("WRITE_WAIT_SECONDS")
-	s, err := strconv.Atoi(v)
-	if err != nil {
-		return DefaultWriteWaitSeconds
+// seconds converts a configured second count to a Duration, falling back to
+// fallback when the value is not positive.
+func seconds(value, fallback int) time.Duration {
+	if value < 1 {
+		value = fallback
 	}
-	if s < 1 {
-		return DefaultWriteWaitSeconds
-	}
-	return time.Duration(s)
+	return time.Duration(value) * time.Second
 }
 
 // Websocket keepalive tuning. pongWait is how long we'll wait for a pong
 // (or any other message) before considering the connection dead. pingPeriod
 // must be less than pongWait so pings go out with time to spare.
 var (
-	pongWait   = parsePongWait() * time.Second
+	pongWait   = seconds(appConfig.WebRTC.PongWaitSeconds, DefaultPongWaitSeconds)
 	pingPeriod = (pongWait * 9) / 10
-	writeWait  = parseWriteWait() * time.Second
+	writeWait  = seconds(appConfig.WebRTC.WriteWaitSeconds, DefaultWriteWaitSeconds)
 )
-
-type websocketMessage struct {
-	Event string          `json:"event"`
-	Data  json.RawMessage `json:"data"`
-}
 
 type peerConnectionState struct {
 	peerConnection *webrtc.PeerConnection
@@ -102,10 +78,7 @@ func (t *threadSafeWriter) WriteJSON(event string, v interface{}) error {
 
 	t.Conn.SetWriteDeadline(time.Now().Add(writeWait)) // nolint
 
-	return t.Conn.WriteJSON(struct {
-		Event string `json:"event"`
-		Data  any    `json:"data"`
-	}{event, v})
+	return t.Conn.WriteJSON([2]any{event, v})
 }
 
 // Ping sends a websocket control-frame ping. Pairs with the pong handler
@@ -271,7 +244,7 @@ func ReadLoop(d io.Reader, ip [4]byte) {
 	for {
 		n, err := d.Read(buffer)
 		if err != nil {
-			fmt.Println("Datachannel closed; Exit the readloop:", err)
+			log.Debug().Err(err).Msg("data channel closed, exiting read loop")
 
 			return
 		}
@@ -293,7 +266,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 	// Upgrade HTTP request to Websocket
 	unsafeConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Errorf("Failed to upgrade HTTP to Websocket: %v", err)
+		log.Error().Err(err).Str("remote", r.RemoteAddr).Msg("failed to upgrade to websocket")
 
 		return
 	}
@@ -324,7 +297,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 			select {
 			case <-ticker.C:
 				if err := c.Ping(); err != nil {
-					log.Errorf("Failed to send ping: %v", err)
+					log.Error().Err(err).Msg("failed to send ping")
 					return
 				}
 			case <-pingDone:
@@ -337,7 +310,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 	// Create new PeerConnection
 	peerConnection, err := api.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
-		log.Errorf("Failed to creates a PeerConnection: %v", err)
+		log.Error().Err(err).Msg("failed to create peer connection")
 
 		return
 	}
@@ -350,7 +323,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 		if _, err := peerConnection.AddTransceiverFromKind(typ, webrtc.RTPTransceiverInit{
 			Direction: webrtc.RTPTransceiverDirectionRecvonly,
 		}); err != nil {
-			log.Errorf("Failed to add transceiver: %v", err)
+			log.Error().Err(err).Msg("failed to add transceiver")
 
 			return
 		}
@@ -359,7 +332,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 	f := false
 	var z uint16 = 0
 	if err != nil {
-		log.Errorf("Failed to creates a data channel: %v", err)
+		log.Error().Err(err).Msg("failed to create data channel")
 
 		return
 	}
@@ -376,7 +349,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 		MaxRetransmits: &z,
 	})
 	if err != nil {
-		log.Errorf("Failed to creates a data channel: %v", err)
+		log.Error().Err(err).Msg("failed to create data channel")
 
 		return
 	}
@@ -398,7 +371,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 			MaxRetransmits: &z,
 		})
 		if err != nil {
-			log.Errorf("Failed to creates a data channel: %v", err)
+			log.Error().Err(err).Msg("failed to create data channel")
 
 			return
 		}
@@ -422,7 +395,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 		// Using Marshal will result in errors around `sdpMid`
 
 		if writeErr := c.WriteJSON(EventCandidate, i.ToJSON()); writeErr != nil {
-			log.Errorf("Failed to write JSON: %v", writeErr)
+			log.Error().Err(writeErr).Msg("failed to write json")
 		}
 	})
 
@@ -431,7 +404,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 		switch p {
 		case webrtc.PeerConnectionStateFailed:
 			if err := peerConnection.Close(); err != nil {
-				log.Errorf("Failed to close PeerConnection: %v", err)
+				log.Error().Err(err).Msg("failed to close peer connection")
 			}
 		case webrtc.PeerConnectionStateClosed:
 			signalPeerConnections()
@@ -455,7 +428,7 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 			}
 
 			if err = rtpPkt.Unmarshal(buf[:i]); err != nil {
-				log.Errorf("Failed to unmarshal incoming RTP packet: %v", err)
+				log.Error().Err(err).Msg("failed to unmarshal incoming rtp packet")
 
 				return
 			}
@@ -478,11 +451,11 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 	// Signal for the new PeerConnection
 	signalPeerConnections()
 
-	message := &websocketMessage{}
+	message := [2]json.RawMessage{}
 	for {
 		_, raw, err := c.ReadMessage()
 		if err != nil {
-			log.Errorf("Failed to read message: %v", err)
+			log.Error().Err(err).Msg("failed to read message")
 
 			return
 		}
@@ -491,35 +464,43 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 		c.SetReadDeadline(time.Now().Add(pongWait)) // nolint
 
 		if err := json.Unmarshal(raw, &message); err != nil {
-			log.Errorf("Failed to unmarshal json to message: %v", err)
+			log.Error().Err(err).Msg("failed to unmarshal message")
 
 			return
 		}
+		eventRaw := message[0]
+		event := ""
+		if err := json.Unmarshal(eventRaw, &event); err != nil {
+			log.Error().Err(err).Msg("failed to unmarshal message event")
 
-		switch message.Event {
+			return
+		}
+		eventDataRaw := message[1]
+
+		switch event {
 		case EventCandidate:
 			candidate := webrtc.ICECandidateInit{}
-			if err := json.Unmarshal(message.Data, &candidate); err != nil {
-				log.Errorf("Failed to unmarshal json to candidate: %v", err)
+			if err := json.Unmarshal(eventDataRaw, &candidate); err != nil {
+				log.Error().Err(err).Msg("failed to unmarshal ice candidate")
 
 				return
 			}
 
 			if err := peerConnection.AddICECandidate(candidate); err != nil {
-				log.Errorf("Failed to add ICE candidate: %v", err)
+				log.Error().Err(err).Msg("failed to add ice candidate")
 
 				return
 			}
 		case EventAnswer:
 			answer := webrtc.SessionDescription{}
-			if err := json.Unmarshal(message.Data, &answer); err != nil {
-				log.Errorf("Failed to unmarshal json to answer: %v", err)
+			if err := json.Unmarshal(eventDataRaw, &answer); err != nil {
+				log.Error().Err(err).Msg("failed to unmarshal answer")
 
 				return
 			}
 
 			if err := peerConnection.SetRemoteDescription(answer); err != nil {
-				log.Errorf("Failed to set remote description: %v", err)
+				log.Error().Err(err).Msg("failed to set remote description")
 
 				return
 			}
@@ -530,16 +511,8 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) { // nolint
 			if isNeedSignaling {
 				signalPeerConnections()
 			}
-		case "ping":
-			// Application-level ping from the client (as opposed to the
-			// websocket control frame) - just echo a pong event back.
-			if err := c.WriteJSON("pong", nil); err != nil {
-				log.Errorf("Failed to write pong: %v", err)
-
-				return
-			}
 		default:
-			log.Errorf("unknown message: %+v", message)
+			log.Warn().Str("event", event).Msg("unknown signalling message")
 		}
 	}
 }

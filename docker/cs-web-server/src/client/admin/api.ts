@@ -1,146 +1,65 @@
-import type { LoggerWrapper } from "./logger";
+import {
+    ApiClient,
+    type ApiClientOptions,
+    type ApiResponse,
+    type RequestOptions,
+} from "../core";
 
-// ============================================
-// API Client Types
-// ============================================
-
-export interface ApiResponse<T = unknown> {
-  ok: boolean;
-  status: number;
-  statusText?: string;
-  data?: T;
-  error?: string;
+export interface SaltResponse {
+    salt: string;
 }
 
-export interface ApiClientOptions {
-  authToken?: string | null;
-  baseUrl?: string;
-  logger?: LoggerWrapper;
-  timeout?: number;
+export interface LoginResponse {
+    token: string;
+    expiresIn: number;
 }
 
-export interface RequestOptions {
-  body?: unknown;
-  includeAuth?: boolean;
-  timeout?: number;
+export interface LoginRequest {
+    username: string;
+    passwordHash: string;
 }
 
-// Default timeout in milliseconds
-const DEFAULT_TIMEOUT = 5000;
+/**
+ * Admin API client.
+ *
+ * Extends the shared {@link ApiClient} with the bearer token and the endpoints
+ * only the panel uses; transport concerns stay in the base class.
+ */
+export class AdminApiClient extends ApiClient {
+    private token: string | null = null;
 
-// ============================================
-// API Client Class
-// ============================================
-
-export class ApiClient {
-  private options: ApiClientOptions;
-
-  constructor(options: ApiClientOptions = {}) {
-    this.options = { ...options };
-  }
-
-  /**
-   * Sets/updates the client options
-   */
-  set config(options: Partial<ApiClientOptions>) {
-    this.options = { ...this.options, ...options };
-  }
-
-  /**
-   * Prepares headers for HTTP requests
-   */
-  private prepareRequestHeaders(includeAuth: boolean = true): HeadersInit {
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-
-    if (includeAuth && this.options.authToken) {
-      headers["Authorization"] = `Bearer ${this.options.authToken}`;
+    constructor(options: ApiClientOptions) {
+        super(options);
     }
 
-    return headers;
-  }
-
-  /**
-   * Performs HTTP request with timeout
-   */
-  async request<T = unknown>(
-    method: "GET" | "POST" | "PUT" | "DELETE",
-    url: string,
-    options: RequestOptions = {}
-  ): Promise<ApiResponse<T>> {
-    const { body, includeAuth = true, timeout } = options;
-    const requestTimeout = timeout ?? this.options.timeout ?? DEFAULT_TIMEOUT;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
-
-    try {
-      const fullUrl = this.options.baseUrl ? `${this.options.baseUrl}${url}` : url;
-
-      const response = await fetch(fullUrl, {
-        method,
-        headers: this.prepareRequestHeaders(includeAuth),
-        body: body ? JSON.stringify(body) : undefined,
-        signal: controller.signal,
-      });
-
-      return this.handleResponse<T>(response);
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        return this.handleError(new Error("Request timeout"));
-      }
-      return this.handleError(error);
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  /**
-   * Handles the response from fetch
-   */
-  private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
-    const result: ApiResponse<T> = {
-      ok: response.ok,
-      status: response.status,
-      statusText: response.statusText,
-    };
-
-    // Handle no content response
-    if (response.status === 204) {
-      return result;
+    get authToken(): string | null {
+        return this.token;
     }
 
-    // Try to parse JSON response
-    try {
-      const text = await response.text();
-      if (text) {
-        result.data = JSON.parse(text) as T;
-      }
-    } catch {
-      // Response is not JSON, that's ok
+    set authToken(token: string | null) {
+        this.token = token;
     }
 
-    // Add error message for non-ok responses
-    if (!response.ok) {
-      result.error = response.statusText || `Request failed (${response.status})`;
-      this.options.logger?.warn(`API error: ${response.status} - ${result.error}`);
+    /** `GET /v1/auth` — password salt, unauthenticated. */
+    fetchSalt(): Promise<ApiResponse<SaltResponse>> {
+        return this.request<SaltResponse>("GET", "/v1/auth", {anonymous: true});
     }
 
-    return result;
-  }
+    /** `POST /v1/auth` — login, unauthenticated. */
+    login(body: LoginRequest): Promise<ApiResponse<LoginResponse>> {
+        return this.request<LoginResponse>("POST", "/v1/auth", {body, anonymous: true});
+    }
 
-  /**
-   * Handles fetch errors
-   */
-  private handleError<T>(error: unknown): ApiResponse<T> {
-    const message = error instanceof Error ? error.message : "Network error";
-    this.options.logger?.error("API request failed:", error);
+    /** `POST /v1/rcon` — run one command, or a batch of cvar reads. */
+    sendCommand(command: string | string[]): Promise<ApiResponse<void>> {
+        return this.request<void>("POST", "/v1/rcon", {body: {command}});
+    }
 
-    return {
-      ok: false,
-      status: 0,
-      error: message,
-    };
-  }
+    protected override buildHeaders(options: RequestOptions): Record<string, string> {
+        const headers = super.buildHeaders(options);
+        if (!options.anonymous && this.token) {
+            headers["Authorization"] = `Bearer ${this.token}`;
+        }
+        return headers;
+    }
 }

@@ -17,13 +17,12 @@ import (
 	"path/filepath"
 	"time"
 	"unsafe"
+
 	"github.com/gorilla/websocket"
 )
 
-var adminPassword string
-var adminUsername string
-var passwordSalt string  // Random salt for password hashing
-var adminLogLevel string // Log level for admin panel (debug, info, warn, error)
+// passwordSalt is generated at startup, not configured.
+var passwordSalt string
 
 // WebSocket logs event version constants
 const (
@@ -35,10 +34,10 @@ const (
 // checkCredentials validates both username and password hash using constant-time comparison
 func checkCredentials(username, passwordHash string) bool {
 	// Validate username
-	usernameMatch := subtle.ConstantTimeCompare([]byte(username), []byte(adminUsername)) == 1
+	usernameMatch := subtle.ConstantTimeCompare([]byte(username), []byte(appConfig.Admin.Username)) == 1
 
 	// Compute expected hash: SHA-512(password + salt)
-	expectedHash := computePasswordHash(adminPassword, passwordSalt)
+	expectedHash := computePasswordHash(appConfig.Admin.Password, passwordSalt)
 
 	// Compare hashes using constant-time comparison
 	hashMatch := subtle.ConstantTimeCompare([]byte(passwordHash), []byte(expectedHash)) == 1
@@ -112,7 +111,7 @@ func rconHandler(w http.ResponseWriter, r *http.Request) {
 
 // ExecuteCommand sends a command to the Xash3D engine
 func ExecuteCommand(command string) {
-	log.Infof("Executing RCON command: %s", command)
+	log.Info().Str("command", command).Msg("executing rcon command")
 
 	// Add command to the engine's command buffer
 	// We need to add a newline to ensure the command is executed
@@ -127,7 +126,7 @@ func ExecuteCommand(command string) {
 // adminHandler serves the admin panel
 func adminHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if admin panel is enabled
-	if adminPassword == "" || adminUsername == "" {
+	if !appConfig.Admin.Enabled() {
 		http.Error(w, "Admin panel is disabled (ADMIN_PANEL_USER and ADMIN_PANEL_PASSWORD must be set)", http.StatusServiceUnavailable)
 		return
 	}
@@ -144,7 +143,7 @@ func adminHandler(w http.ResponseWriter, r *http.Request) {
 // logsWebSocketHandler handles WebSocket connections for log streaming (requires JWT authentication)
 func logsWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if admin panel is enabled
-	if adminPassword == "" || adminUsername == "" {
+	if !appConfig.Admin.Enabled() {
 		http.Error(w, "Log streaming is disabled (ADMIN_PANEL_USER and ADMIN_PANEL_PASSWORD must be set)", http.StatusServiceUnavailable)
 		return
 	}
@@ -152,7 +151,7 @@ func logsWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	// Upgrade to WebSocket first (auth will happen via first message)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Errorf("Failed to upgrade HTTP to WebSocket for logs: %v", err)
+		log.Error().Err(err).Msg("failed to upgrade to websocket for logs")
 		return
 	}
 
@@ -160,49 +159,46 @@ func logsWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
 	// Read first message which should contain the auth token
-	var authMsg struct {
-		Event string `json:"event"`
-		Token string `json:"token"`
-	}
+	var authMsg [2]string
 	if err := conn.ReadJSON(&authMsg); err != nil {
-		log.Warnf("Failed to read auth message from %s: %v", r.RemoteAddr, err)
-		conn.WriteJSON(map[string]string{"event": "v1:error", "error": "Failed to read auth message"})
+		log.Warn().Str("remote", r.RemoteAddr).Err(err).Msg("failed to read auth message")
+		conn.WriteJSON([2]any{"v1:error", "Failed to read auth message"})
 		conn.Close()
 		return
 	}
 
-	if authMsg.Event != "v1:auth" || authMsg.Token == "" {
-		log.Warnf("Invalid auth message from %s", r.RemoteAddr)
-		conn.WriteJSON(map[string]string{"event": "v1:error", "error": "Invalid auth message"})
+	if authMsg[0] != "v1:auth" || authMsg[1] == "" {
+		log.Warn().Str("remote", r.RemoteAddr).Msg("invalid auth message")
+		conn.WriteJSON([2]any{"v1:error", "Invalid auth message"})
 		conn.Close()
 		return
 	}
 
 	// Validate JWT token
-	claims, err := validateToken(authMsg.Token)
+	claims, err := validateToken(authMsg[1])
 	if err != nil {
-		log.Warnf("Invalid token for WebSocket from %s: %v", r.RemoteAddr, err)
-		conn.WriteJSON(map[string]string{"event": "v1:error", "error": "Invalid or expired token"})
+		log.Warn().Str("remote", r.RemoteAddr).Err(err).Msg("invalid token for websocket")
+		conn.WriteJSON([2]any{"v1:error", "Invalid or expired token"})
 		conn.Close()
 		return
 	}
 
 	if claims.Role != "admin" {
-		conn.WriteJSON(map[string]string{"event": "v1:error", "error": "Insufficient permissions"})
+		conn.WriteJSON([2]any{"v1:error", "Insufficient permissions"})
 		conn.Close()
 		return
 	}
 
 	// Verify username in token matches configured username
-	if claims.Username != adminUsername {
-		log.Warnf("Token username mismatch for WebSocket from %s: expected %s, got %s", r.RemoteAddr, adminUsername, claims.Username)
-		conn.WriteJSON(map[string]string{"event": "v1:error", "error": "Invalid token"})
+	if claims.Username != appConfig.Admin.Username {
+		log.Warn().Str("remote", r.RemoteAddr).Str("expected", appConfig.Admin.Username).Str("got", claims.Username).Msg("token username mismatch for websocket")
+		conn.WriteJSON([2]any{"v1:error", "Invalid token"})
 		conn.Close()
 		return
 	}
 
 	// Auth successful - send confirmation
-	conn.WriteJSON(map[string]string{"event": "v1:auth", "status": "ok"})
+	conn.WriteJSON([2]any{"v1:auth", "ok"})
 
 	// Reset read deadline for normal operation
 	conn.SetReadDeadline(time.Time{})
@@ -211,7 +207,7 @@ func logsWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Send history to client
 	if err := sendHistory(conn); err != nil {
-		log.Errorf("Failed to send log history: %v", err)
+		log.Error().Err(err).Msg("failed to send log history")
 		return
 	}
 
@@ -251,16 +247,14 @@ func logsWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 				}
 
 				logMsg := struct {
-					Event     string `json:"event"`
 					Timestamp string `json:"timestamp"`
 					Message   string `json:"message"`
 				}{
-					Event:     LogsEventLog,
 					Timestamp: time.Now().Format(time.RFC3339),
 					Message:   message,
 				}
 
-				if err := conn.WriteJSON(logMsg); err != nil {
+				if err := conn.WriteJSON([2]any{LogsEventLog, logMsg}); err != nil {
 					return
 				}
 

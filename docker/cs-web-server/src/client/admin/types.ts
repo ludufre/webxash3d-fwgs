@@ -20,14 +20,7 @@ export interface JWTPayload {
   [key: string]: unknown;
 }
 
-export interface WebSocketMessage {
-  event: "v1:auth" | "v1:error" | "v1:history" | "v1:log";
-  status?: string;
-  error?: string;
-  logs?: LogEntry[];
-  timestamp?: string;
-  message?: string;
-}
+export type WebSocketMessage = string | LogEntry[] | LogEntry
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
@@ -85,4 +78,7 @@ export interface DOMElements {
   settingsStatus: HTMLElement;
   settingsStatusText: HTMLElement;
   settingsRefreshBtn: HTMLButtonElement;
+
+  // Language selectors (auth screen and admin header)
+  languageSelectors: HTMLSelectElement[];
 }

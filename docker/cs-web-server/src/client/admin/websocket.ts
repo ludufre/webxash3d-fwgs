@@ -1,311 +1,225 @@
-import { stripAnsiCodes } from "./utils";
-import type { TokenData, WebSocketMessage, DOMElements } from "./types";
-import type { UIManager } from "./ui";
-import type { DOMManager } from "./dom";
-import type { LoggerWrapper } from "./logger";
-import type { I18nManager } from "./i18n";
+import {WebSocketClient, type Logger} from "../core";
+import type {AdminDom} from "./dom";
+import type {I18n} from "./i18n";
+import type {DOMElements, LogEntry, TokenData, WebSocketMessage} from "./types";
+import type {UIManager} from "./ui";
+import {stripAnsiCodes} from "./utils";
+import {forEach} from "jszip";
 
-// ============================================
-// WebSocket event version constants
-// ============================================
 const EVENT_VERSION = "v1";
+
 const EVENTS = {
-  AUTH: `${EVENT_VERSION}:auth`,
-  ERROR: `${EVENT_VERSION}:error`,
-  HISTORY: `${EVENT_VERSION}:history`,
-  LOG: `${EVENT_VERSION}:log`,
+    AUTH: `${EVENT_VERSION}:auth`,
+    ERROR: `${EVENT_VERSION}:error`,
+    HISTORY: `${EVENT_VERSION}:history`,
+    LOG: `${EVENT_VERSION}:log`,
 } as const;
 
-// ============================================
-// WebSocket Manager Options
-// ============================================
+const LOGS_PATH = "/websocket/logs";
+const AUTH_FAILURE_CODES = [1008, 4401];
+const LOGOUT_DELAY = 2000;
 
-export interface WebSocketManagerOptions {
-  domManager: DOMManager;
-  uiManager: UIManager;
-  logger: LoggerWrapper;
-  i18n: I18nManager;
+export interface AdminLogSocketOptions {
+    logger: Logger;
+    dom: AdminDom;
+    ui: UIManager;
+    i18n: I18n;
+    /** Overrides the default `/websocket/logs` path. */
+    url?: string;
 }
 
-// ============================================
-// WebSocket Manager Class
-// ============================================
+/**
+ * Authenticated log stream for the admin panel.
+ *
+ * Extends the shared {@link WebSocketClient}: connection lifecycle, reconnect
+ * and send live in the base class, this subclass only adds the auth handshake
+ * and the log/settings/map message handling.
+ */
+export class AdminLogSocket extends WebSocketClient {
+    private readonly dom: AdminDom;
+    private readonly ui: UIManager;
+    private readonly i18n: I18n;
 
-export class WebSocketManager {
-  private readonly domManager: DOMManager;
-  private readonly uiManager: UIManager;
-  private readonly logger: LoggerWrapper;
-  private readonly i18n: I18nManager;
-  private ws: WebSocket | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private currentTokenData: TokenData | null = null;
-  private onLogoutCallback: (() => void) | null = null;
-  private onSettingReceivedCallback: ((settingName: string) => void) | null =
-    null;
+    private tokenData: TokenData | null = null;
+    private onLogout: (() => void) | null = null;
+    private onSettingReceived: ((settingName: string) => void) | null = null;
 
-  constructor(options: WebSocketManagerOptions) {
-    this.domManager = options.domManager;
-    this.uiManager = options.uiManager;
-    this.logger = options.logger;
-    this.i18n = options.i18n;
-  }
-
-  /**
-   * Gets DOM elements
-   */
-  private get el(): DOMElements {
-    return this.domManager.elements;
-  }
-
-  /**
-   * Sets the callback for when a setting is received
-   */
-  setSettingReceivedCallback(callback: (settingName: string) => void): void {
-    this.onSettingReceivedCallback = callback;
-  }
-
-  /**
-   * Connects to WebSocket
-   */
-  connect(tokenData: TokenData, onLogout: () => void): void {
-    this.logger.info("Connecting to WebSocket...");
-    this.currentTokenData = tokenData;
-    this.onLogoutCallback = onLogout;
-
-    if (!tokenData) {
-      this.uiManager.addLog("System", this.i18n.t("errors.noToken"));
-      return;
-    }
-
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/websocket/logs`;
-
-    this.uiManager.updateConnectionStatus(
-      "connecting",
-      this.i18n.t("status.connecting"),
-    );
-
-    this.ws = new WebSocket(wsUrl);
-
-    this.ws.onopen = this.handleOpen.bind(this);
-    this.ws.onmessage = this.handleMessage.bind(this);
-    this.ws.onerror = this.handleError.bind(this);
-    this.ws.onclose = this.handleClose.bind(this);
-  }
-
-  /**
-   * Disconnects WebSocket
-   */
-  disconnect(): void {
-    this.logger.info("Disconnecting WebSocket...");
-
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-
-    this.currentTokenData = null;
-    this.onLogoutCallback = null;
-  }
-
-  // ============================================
-  // Message Processing
-  // ============================================
-
-  /**
-   * Updates a setting input from log message
-   */
-  private updateSettingFromMessage(message: string): void {
-    const checkRegex = /.+"([A-Za-z_]+)" is "(.+?|)"( \( "(.+|)" \)|)$/;
-    if (!checkRegex.test(message)) return;
-
-    const match = message.match(checkRegex);
-    if (!match || match.length < 3) return;
-
-    const settingName = match[1];
-    const currentValue = match[2];
-
-    const inputElement = document.querySelector<
-      HTMLInputElement | HTMLSelectElement
-    >(
-      `#game-settings input[name="${settingName}"], #game-settings select[name="${settingName}"]`,
-    );
-
-    if (!inputElement) return;
-
-    if (inputElement instanceof HTMLInputElement) {
-      if (inputElement.type === "checkbox") {
-        inputElement.checked = currentValue === "1";
-      } else {
-        inputElement.value = currentValue;
-      }
-    } else if (inputElement instanceof HTMLSelectElement) {
-      inputElement.value = currentValue;
-    }
-
-    // Notify that this setting was received
-    if (this.onSettingReceivedCallback) {
-      this.onSettingReceivedCallback(settingName);
-    }
-
-    this.logger.debug(`Updated setting ${settingName} to ${currentValue}`);
-  }
-
-  /**
-   * Processes map list from log messages in DOM
-   */
-  private processMapList(message: string): void {
-    const mapsListedRegex = /Directory: ".+\/maps" - Maps listed: ([\d]{1,})$/;
-    const match = message.match(mapsListedRegex);
-
-    if (!match) return;
-
-    const mapCount = parseInt(match[1], 10);
-
-    this.logger.debug(`Maps listed: ${mapCount}`);
-
-    // Get log entries from DOM
-    const logEntries = this.el.logsContainer.querySelectorAll(".log-entry");
-    const totalLogs = logEntries.length;
-
-    // Get the last mapCount messages (excluding the current "Maps listed" message)
-    const startIndex = Math.max(0, totalLogs - mapCount - 2);
-    const endIndex = totalLogs - 1;
-
-    const maps: string[] = [];
-
-    for (let i = startIndex; i < endIndex; i++) {
-      const logMessage =
-        logEntries[i].querySelector(".log-message")?.textContent || "";
-
-      const mapMatch = logMessage.match(/(.+)\s+\(Half-Life\)/);
-
-      if (mapMatch && mapMatch[1]) {
-        // Ignore Half-Life single player maps like c1a1, t0a5b, etc.
-        if (!/^\b[ct]\d+a\d+(?:[a-z]\d*)?\b$/.test(mapMatch[1])) {
-          maps.push(mapMatch[1]);
-        }
-      }
-    }
-
-    this.logger.debug("Detected maps:", maps);
-
-    // Update map selection UI
-    this.uiManager.updateMapsList(maps);
-  }
-
-  // ============================================
-  // Event Handlers
-  // ============================================
-
-  /**
-   * Handles WebSocket open event - sends auth message
-   */
-  private handleOpen(): void {
-    this.logger.info("WebSocket connected, sending auth...");
-
-    if (!this.ws || !this.currentTokenData) {
-      return;
-    }
-
-    // Send auth message with token
-    this.ws.send(
-      JSON.stringify({
-        event: EVENTS.AUTH,
-        token: this.currentTokenData.token,
-      }),
-    );
-  }
-
-  /**
-   * Handles WebSocket message event
-   */
-  private handleMessage(event: MessageEvent): void {
-    try {
-      const data: WebSocketMessage = JSON.parse(event.data);
-
-      // Handle auth response
-      if (data.event === EVENTS.AUTH && data.status === "ok") {
-        this.logger.info("WebSocket authenticated");
-        this.uiManager.updateConnectionStatus(
-          "connected",
-          this.i18n.t("status.connected"),
-        );
-        this.uiManager.addLog("System", this.i18n.t("logs.connectedToServer"));
-        return;
-      }
-
-      // Handle error
-      if (data.event === EVENTS.ERROR) {
-        this.logger.error("WebSocket error:", data.error);
-        this.uiManager.addLog("System", `ERROR: ${data.error}`);
-        return;
-      }
-
-      if (data.event === EVENTS.HISTORY) {
-        this.uiManager.clearLogs();
-        this.uiManager.addLog(
-          "System",
-          this.i18n.t("logs.historyLoaded", { count: data.logs?.length || 0 }),
-        );
-
-        data.logs?.forEach((log) => {
-          this.uiManager.addLog(log.timestamp, log.message);
+    constructor(options: AdminLogSocketOptions) {
+        super({
+            url: options.url ?? LOGS_PATH,
+            logger: options.logger,
+            autoReconnect: true,
+            reconnectDelay: 3000,
         });
-      } else if (data.event === EVENTS.LOG && data.timestamp && data.message) {
-        this.uiManager.addLog(data.timestamp, data.message);
-        this.updateSettingFromMessage(stripAnsiCodes(data.message));
-        this.processMapList(data.message);
-      }
-    } catch (error) {
-      this.logger.error("Failed to parse WebSocket message:", error);
+
+        this.dom = options.dom;
+        this.ui = options.ui;
+        this.i18n = options.i18n;
     }
-  }
 
-  /**
-   * Handles WebSocket error event
-   */
-  private handleError(error: Event): void {
-    this.logger.error("WebSocket error:", error);
-    this.uiManager.updateConnectionStatus(
-      "disconnected",
-      this.i18n.t("status.error"),
-    );
-  }
+    private get el(): DOMElements {
+        return this.dom.elements;
+    }
 
-  /**
-   * Handles WebSocket close event
-   */
-  private handleClose(event: CloseEvent): void {
-    this.uiManager.updateConnectionStatus(
-      "disconnected",
-      this.i18n.t("status.disconnected"),
-    );
+    setSettingReceivedCallback(callback: (settingName: string) => void): void {
+        this.onSettingReceived = callback;
+    }
 
-    // Check if it was an auth error
-    if (event.code === 1008 || event.code === 4401) {
-      this.uiManager.addLog("System", this.i18n.t("errors.authFailed"));
-      setTimeout(() => {
-        if (this.onLogoutCallback) {
-          this.onLogoutCallback();
+    /** Authenticates with `tokenData` and opens the stream. */
+    authenticate(tokenData: TokenData, onLogout: () => void): void {
+        this.tokenData = tokenData;
+        this.onLogout = onLogout;
+
+        this.ui.updateConnectionStatus("connecting", this.i18n.t("status.connecting"));
+        this.connect();
+    }
+
+    override disconnect(): void {
+        super.disconnect();
+        this.tokenData = null;
+        this.onLogout = null;
+    }
+
+    // ============================================
+    // Socket lifecycle
+    // ============================================
+
+    protected override handleOpen(event: Event): void {
+        super.handleOpen(event);
+
+        if (!this.tokenData) {
+            this.ui.addLog("System", this.i18n.t("errors.noToken"));
+            return;
         }
-      }, 2000);
-      return;
+
+        this.sendEvent(EVENTS.AUTH, this.tokenData.token);
     }
 
-    this.uiManager.addLog("System", this.i18n.t("logs.disconnected"));
+    protected override handleMessage(event: MessageEvent): void {
+        super.handleMessage(event);
 
-    // Auto-reconnect after 3 seconds
-    this.reconnectTimer = setTimeout(() => {
-      if (this.currentTokenData) {
-        this.uiManager.addLog("System", this.i18n.t("logs.reconnecting"));
-        this.connect(this.currentTokenData!, this.onLogoutCallback!);
-      }
-    }, 3000);
-  }
+        let data: WebSocketMessage, incomingEvent: string;
+        try {
+            [incomingEvent, data] = JSON.parse(event.data);
+        } catch (error) {
+            this.logger.error(error, "failed to parse message");
+            return;
+        }
+
+        switch (incomingEvent) {
+            case EVENTS.AUTH:
+                if (data !== "ok") return;
+                this.logger.info({username: this.tokenData?.username}, "authenticated");
+                this.ui.updateConnectionStatus(
+                    "connected",
+                    this.i18n.t("status.connected"),
+                );
+                this.ui.addLog("System", this.i18n.t("logs.connectedToServer"));
+                return;
+
+            case EVENTS.ERROR:
+                this.logger.error(data, "server reported error");
+                this.ui.addLog("System", `ERROR: ${data}`);
+                return;
+
+            case EVENTS.HISTORY:
+                const logs = data as LogEntry[]
+                this.ui.clearLogs();
+                this.ui.addLog(
+                    "System",
+                    this.i18n.t("logs.historyLoaded", {count: logs.length ?? 0}),
+                );
+                logs.forEach((log) => this.ui.addLog(log.timestamp, log.message));
+                return;
+
+            case EVENTS.LOG:
+                const log = data as LogEntry;
+                if (!log.timestamp || !log.message) return;
+                this.ui.addLog(log.timestamp, log.message);
+                this.updateSettingFromMessage(stripAnsiCodes(log.message));
+                this.processMapList(log.message);
+                return;
+        }
+    }
+
+    protected override handleError(event: Event): void {
+        super.handleError(event);
+        this.ui.updateConnectionStatus("disconnected", this.i18n.t("status.error"));
+    }
+
+    protected override handleClose(event: CloseEvent): void {
+        this.ui.updateConnectionStatus("disconnected", this.i18n.t("status.disconnected"));
+
+        if (AUTH_FAILURE_CODES.includes(event.code)) {
+            // Auth failure: log out instead of reconnecting in a loop.
+            this.ui.addLog("System", this.i18n.t("errors.authFailed"));
+            const onLogout = this.onLogout;
+            this.disconnect();
+            setTimeout(() => onLogout?.(), LOGOUT_DELAY);
+            return;
+        }
+
+        this.ui.addLog("System", this.i18n.t("logs.disconnected"));
+        if (this.tokenData) {
+            this.ui.addLog("System", this.i18n.t("logs.reconnecting"));
+        }
+
+        super.handleClose(event);
+    }
+
+    // ============================================
+    // Message parsing
+    // ============================================
+
+    /** Mirrors a `"cvar" is "value"` console line back into the settings form. */
+    private updateSettingFromMessage(message: string): void {
+        const match = message.match(/.+"([A-Za-z_]+)" is "(.+?|)"( \( "(.+|)" \)|)$/);
+        if (!match || match.length < 3) return;
+
+        const [, settingName, currentValue] = match;
+
+        const input = document.querySelector<HTMLInputElement | HTMLSelectElement>(
+            `#game-settings input[name="${settingName}"], #game-settings select[name="${settingName}"]`,
+        );
+        if (!input) return;
+
+        if (input instanceof HTMLInputElement && input.type === "checkbox") {
+            input.checked = currentValue === "1";
+        } else {
+            input.value = currentValue;
+        }
+
+        this.onSettingReceived?.(settingName);
+        this.logger.debug({setting: settingName, value: currentValue}, "updated setting");
+    }
+
+    /** Collects map names printed by `maps *` out of the rendered log. */
+    private processMapList(message: string): void {
+        const match = message.match(/Directory: ".+\/maps" - Maps listed: ([\d]{1,})$/);
+        if (!match) return;
+
+        const mapCount = Number.parseInt(match[1], 10);
+        this.logger.debug({count: mapCount}, "maps listed");
+
+        const logEntries = this.el.logsContainer.querySelectorAll(".log-entry");
+        const totalLogs = logEntries.length;
+
+        const startIndex = Math.max(0, totalLogs - mapCount - 2);
+        const endIndex = totalLogs - 1;
+
+        const maps: string[] = [];
+        for (let i = startIndex; i < endIndex; i++) {
+            const logMessage =
+                logEntries[i].querySelector(".log-message")?.textContent ?? "";
+            const mapMatch = logMessage.match(/(.+)\s+\(Half-Life\)/);
+
+            // Ignore Half-Life single player maps like c1a1, t0a5b, etc.
+            if (mapMatch?.[1] && !/^\b[ct]\d+a\d+(?:[a-z]\d*)?\b$/.test(mapMatch[1])) {
+                maps.push(mapMatch[1]);
+            }
+        }
+
+        this.logger.debug({maps}, "detected maps");
+        this.ui.updateMapsList(maps);
+    }
 }

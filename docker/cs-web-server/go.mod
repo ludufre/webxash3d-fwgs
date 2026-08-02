@@ -13,6 +13,7 @@ require (
 	github.com/pion/webrtc/v4 v4.1.6
 	github.com/rs/zerolog v1.33.0
 	github.com/yohimik/goxash3d-fwgs v0.0.0-20260119181527-dd563e429ad3
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -35,5 +36,4 @@ require (
 	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

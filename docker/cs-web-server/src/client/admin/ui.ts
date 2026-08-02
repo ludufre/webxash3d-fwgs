@@ -1,319 +1,237 @@
-import { domManager } from "./dom";
-import { escapeHtml, stripAnsiCodes, extractTimestamp } from "./utils";
-import { i18n, type Locale } from "./i18n";
-import type { ConnectionStatus, TokenData, DOMElements } from "./types";
+import type {AdminDom} from "./dom";
+import type {I18n, Locale} from "./i18n";
+import type {ConnectionStatus, DOMElements, TokenData} from "./types";
+import {escapeHtml, extractTimestamp, stripAnsiCodes} from "./utils";
 
-// ============================================
-// UI Manager Class
-// ============================================
+const TOKEN_WARNING_THRESHOLD = 5 * 60 * 1000;
+const AUTO_SCROLL_THRESHOLD = 10;
 
-class UIManager {
-  private isAutoScroll = true;
+export interface UIManagerOptions {
+    dom: AdminDom;
+    i18n: I18n;
+}
 
-  /**
-   * Gets DOM elements
-   */
-  private get el(): DOMElements {
-    return domManager.elements;
-  }
+/**
+ * All admin panel rendering. Holds no state beyond the auto-scroll flag and
+ * receives its DOM and translations by injection.
+ */
+export class UIManager {
+    private readonly dom: AdminDom;
+    private readonly i18n: I18n;
+    private isAutoScroll = true;
 
-  // ============================================
-  // Authentication UI
-  // ============================================
-
-  /**
-   * Shows authentication error message
-   */
-  showAuthError(message: string): void {
-    this.el.authError.textContent = message;
-  }
-
-  /**
-   * Clears authentication error
-   */
-  clearAuthError(): void {
-    this.el.authError.textContent = "";
-  }
-
-  /**
-   * Shows the admin panel
-   */
-  showAdminPanel(): void {
-    this.el.authContainer.style.display = "none";
-    this.el.adminContainer.style.display = "block";
-  }
-
-  /**
-   * Shows the authentication panel
-   */
-  showAuthPanel(): void {
-    this.el.authContainer.style.display = "flex";
-    this.el.adminContainer.style.display = "none";
-  }
-
-  /**
-   * Clears authentication form inputs
-   */
-  clearAuthForm(): void {
-    this.el.usernameInput.value = "";
-    this.el.passwordInput.value = "";
-  }
-
-  /**
-   * Sets login button state
-   */
-  setLoginButtonState(loading: boolean): void {
-    this.el.loginBtn.disabled = loading;
-    this.el.loginBtn.textContent = loading
-      ? i18n.t("auth.loggingIn")
-      : i18n.t("auth.login");
-  }
-
-  // ============================================
-  // User Display
-  // ============================================
-
-  /**
-   * Updates username display
-   */
-  updateUsernameDisplay(username: string): void {
-    this.el.usernameDisplay.textContent = `Logged in as: ${username}`;
-  }
-
-  /**
-   * Updates token expiry display
-   */
-  updateTokenExpiry(tokenData: TokenData | null): void {
-    if (!tokenData) return;
-
-    const now = Date.now();
-    const remaining = tokenData.expiresAt - now;
-
-    if (remaining <= 0) {
-      this.el.tokenExpiry.textContent = "Token expired";
-      this.el.tokenExpiry.style.color = "var(--token-expiring)";
-      return;
+    constructor(options: UIManagerOptions) {
+        this.dom = options.dom;
+        this.i18n = options.i18n;
     }
 
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-
-    if (hours > 0) {
-      this.el.tokenExpiry.textContent = `Token expires in ${hours}h ${minutes}m`;
-    } else {
-      this.el.tokenExpiry.textContent = `Token expires in ${minutes}m`;
+    private get el(): DOMElements {
+        return this.dom.elements;
     }
 
-    // Warn if less than 5 minutes
-    if (remaining < 5 * 60 * 1000) {
-      this.el.tokenExpiry.style.color = "var(--token-expiring)";
-    } else {
-      this.el.tokenExpiry.style.color = "var(--token-valid)";
-    }
-  }
+    // ============================================
+    // Authentication UI
+    // ============================================
 
-  // ============================================
-  // Connection Status
-  // ============================================
-
-  /**
-   * Updates WebSocket connection status display
-   */
-  updateConnectionStatus(status: ConnectionStatus, text: string): void {
-    this.el.connectionStatus.className = "status-dot";
-    this.el.connectionStatus.classList.add(status);
-    this.el.connectionText.textContent = text;
-  }
-
-  // ============================================
-  // Logs
-  // ============================================
-
-  /**
-   * Adds a log entry to the logs container
-   */
-  addLog(timestamp: string, message: string): void {
-    const logEntry = document.createElement("div");
-    logEntry.className = "log-entry";
-
-    // Clean message
-    let cleanMessage = stripAnsiCodes(message);
-
-    // Extract timestamp
-    let time: string;
-    const [extractedTime, extractedMessage] = extractTimestamp(cleanMessage);
-
-    if (extractedTime) {
-      time = extractedTime;
-      cleanMessage = extractedMessage;
-    } else if (timestamp === "System") {
-      time = `[${new Date().toLocaleTimeString()}]`;
-    } else {
-      time = `[${new Date(timestamp).toLocaleTimeString()}]`;
+    showAuthError(message: string): void {
+        this.el.authError.textContent = message;
     }
 
-    logEntry.innerHTML = `
+    clearAuthError(): void {
+        this.el.authError.textContent = "";
+    }
+
+    showAdminPanel(): void {
+        this.el.authContainer.style.display = "none";
+        this.el.adminContainer.style.display = "block";
+    }
+
+    showAuthPanel(): void {
+        this.el.authContainer.style.display = "flex";
+        this.el.adminContainer.style.display = "none";
+    }
+
+    clearAuthForm(): void {
+        this.el.usernameInput.value = "";
+        this.el.passwordInput.value = "";
+    }
+
+    setLoginButtonState(loading: boolean): void {
+        this.el.loginBtn.disabled = loading;
+        this.el.loginBtn.textContent = loading
+            ? this.i18n.t("auth.loggingIn")
+            : this.i18n.t("auth.login");
+    }
+
+    // ============================================
+    // Session display
+    // ============================================
+
+    updateUsernameDisplay(username: string): void {
+        this.el.usernameDisplay.textContent = this.i18n.t("session.loggedInAs", {
+            username,
+        });
+    }
+
+    updateTokenExpiry(tokenData: TokenData | null): void {
+        if (!tokenData) return;
+
+        const remaining = tokenData.expiresAt - Date.now();
+        const {tokenExpiry} = this.el;
+
+        if (remaining <= 0) {
+            tokenExpiry.textContent = this.i18n.t("session.tokenExpired");
+            tokenExpiry.style.color = "var(--token-expiring)";
+            return;
+        }
+
+        const hours = Math.floor(remaining / (1000 * 60 * 60));
+        const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+
+        tokenExpiry.textContent = hours
+            ? this.i18n.t("session.tokenExpiryHours", {hours, minutes})
+            : this.i18n.t("session.tokenExpiry", {minutes});
+
+        tokenExpiry.style.color =
+            remaining < TOKEN_WARNING_THRESHOLD
+                ? "var(--token-expiring)"
+                : "var(--token-valid)";
+    }
+
+    updateConnectionStatus(status: ConnectionStatus, text: string): void {
+        this.el.connectionStatus.className = "status-dot";
+        this.el.connectionStatus.classList.add(status);
+        this.el.connectionText.textContent = text;
+    }
+
+    // ============================================
+    // Logs
+    // ============================================
+
+    addLog(timestamp: string, message: string): void {
+        const entry = document.createElement("div");
+        entry.className = "log-entry";
+
+        let cleanMessage = stripAnsiCodes(message);
+        const [extractedTime, extractedMessage] = extractTimestamp(cleanMessage);
+
+        let time: string;
+        if (extractedTime) {
+            time = extractedTime;
+            cleanMessage = extractedMessage;
+        } else if (timestamp === "System") {
+            time = `[${new Date().toLocaleTimeString()}]`;
+        } else {
+            time = `[${new Date(timestamp).toLocaleTimeString()}]`;
+        }
+
+        entry.innerHTML = `
       <span class="log-timestamp">${time}</span>
       <span class="log-message">${escapeHtml(cleanMessage)}</span>
     `;
 
-    this.el.logsContainer.appendChild(logEntry);
+        this.el.logsContainer.appendChild(entry);
 
-    // Auto-scroll to bottom if enabled
-    if (this.isAutoScroll) {
-      this.el.logsContainer.scrollTop = this.el.logsContainer.scrollHeight;
-    }
-  }
-
-  /**
-   * Clears all logs
-   */
-  clearLogs(): void {
-    this.el.logsContainer.innerHTML = "";
-  }
-
-  /**
-   * Sets up auto-scroll detection
-   */
-  setupAutoScroll(): void {
-    this.el.logsContainer.addEventListener("scroll", () => {
-      const { scrollTop, scrollHeight, clientHeight } = this.el.logsContainer;
-      this.isAutoScroll = scrollTop + clientHeight >= scrollHeight - 10;
-    });
-  }
-
-  // ============================================
-  // Maps
-  // ============================================
-
-  /**
-   * Updates the maps list select
-   */
-  updateMapsList(maps: string[]): void {
-    const mapsSelect = this.el.mapsSelect;
-    const changelevelBtn = this.el.changelevelBtn;
-
-    if (!mapsSelect) return;
-
-    if (maps.length === 0) {
-      mapsSelect.innerHTML =
-        '<option disabled>No maps found. Run "maps *" to list.</option>';
-      mapsSelect.disabled = true;
-      if (changelevelBtn) changelevelBtn.disabled = true;
-      return;
+        if (this.isAutoScroll) {
+            this.el.logsContainer.scrollTop = this.el.logsContainer.scrollHeight;
+        }
     }
 
-    mapsSelect.innerHTML = maps
-      .map((map) => `<option value="${map}">${map}</option>`)
-      .join("");
-    mapsSelect.disabled = false;
-    if (changelevelBtn) changelevelBtn.disabled = false;
-  }
-
-  // ============================================
-  // Settings
-  // ============================================
-
-  /**
-   * Shows the settings loading state
-   */
-  showSettingsLoading(): void {
-    this.el.settingsStatus.style.display = "flex";
-    this.el.settingsStatusText.textContent = "Fetching settings...";
-    this.el.settingsStatusText.style.display = "block";
-    this.el.settingsRefreshBtn.style.display = "none";
-    this.el.gameSettingsForm.style.display = "none";
-  }
-
-  /**
-   * Shows the settings form
-   */
-  showSettingsForm(): void {
-    this.el.settingsStatus.style.display = "none";
-    this.el.gameSettingsForm.style.display = "block";
-  }
-
-  /**
-   * Shows the refresh button after timeout
-   */
-  showSettingsRefreshButton(): void {
-    this.el.settingsStatusText.textContent = "Failed to load settings";
-    this.el.settingsRefreshBtn.style.display = "block";
-  }
-
-  /**
-   * Hides a settings row by field name
-   */
-  hideSettingRow(fieldName: string): void {
-    const input = document.querySelector<HTMLInputElement | HTMLSelectElement>(
-      `#game-settings [name="${fieldName}"]`
-    );
-    if (input) {
-      const row = input.closest(".row");
-      if (row) {
-        row.classList.add("hidden");
-      }
+    clearLogs(): void {
+        this.el.logsContainer.innerHTML = "";
     }
-  }
 
-  /**
-   * Shows all settings rows (removes hidden class)
-   */
-  showAllSettingRows(): void {
-    const rows = document.querySelectorAll("#game-settings .row");
-    rows.forEach((row) => row.classList.remove("hidden"));
-  }
-
-  // ============================================
-  // Language Selector
-  // ============================================
-
-  /**
-   * Sets up language selector
-   */
-  setupLanguageSelector(): void {
-    const selectorAuth = document.getElementById(
-      "language-selector-auth"
-    ) as HTMLSelectElement | null;
-    const selectorAdmin = document.getElementById(
-      "language-selector-admin"
-    ) as HTMLSelectElement | null;
-
-    const selectors = [selectorAuth, selectorAdmin].filter(
-      (s) => s !== null
-    ) as HTMLSelectElement[];
-
-    if (selectors.length === 0) return;
-
-    // Generate options HTML
-    const optionsHTML = i18n.availableLocales
-      .map(
-        (locale) =>
-          `<option value="${locale}" ${locale === i18n.getLocale() ? "selected" : ""}>${i18n.localeNames[locale]}</option>`
-      )
-      .join("");
-
-    // Populate all selectors
-    selectors.forEach((selector) => {
-      selector.innerHTML = optionsHTML;
-
-      // Handle change
-      selector.addEventListener("change", async () => {
-        await i18n.setLocale(selector.value as Locale);
-        
-        // Sync all selectors
-        selectors.forEach((s) => {
-          if (s !== selector) {
-            s.value = selector.value;
-          }
+    /** Disables auto-scroll as soon as the user scrolls away from the bottom. */
+    setupAutoScroll(): void {
+        this.el.logsContainer.addEventListener("scroll", () => {
+            const {scrollTop, scrollHeight, clientHeight} = this.el.logsContainer;
+            this.isAutoScroll =
+                scrollTop + clientHeight >= scrollHeight - AUTO_SCROLL_THRESHOLD;
         });
-      });
-    });
-  }
+    }
+
+    // ============================================
+    // Maps
+    // ============================================
+
+    updateMapsList(maps: string[]): void {
+        const {mapsSelect, changelevelBtn} = this.el;
+
+        if (maps.length === 0) {
+            mapsSelect.innerHTML = `<option disabled>${this.i18n.t("maps.selectMapHint")}</option>`;
+            mapsSelect.disabled = true;
+            changelevelBtn.disabled = true;
+            return;
+        }
+
+        mapsSelect.innerHTML = maps
+            .map((map) => `<option value="${map}">${map}</option>`)
+            .join("");
+        mapsSelect.disabled = false;
+        changelevelBtn.disabled = false;
+    }
+
+    // ============================================
+    // Settings
+    // ============================================
+
+    showSettingsLoading(): void {
+        this.el.settingsStatus.style.display = "flex";
+        this.el.settingsStatusText.textContent = this.i18n.t("settings.fetchingSettings");
+        this.el.settingsStatusText.style.display = "block";
+        this.el.settingsRefreshBtn.style.display = "none";
+        this.el.gameSettingsForm.style.display = "none";
+    }
+
+    showSettingsForm(): void {
+        this.el.settingsStatus.style.display = "none";
+        this.el.gameSettingsForm.style.display = "block";
+    }
+
+    showSettingsRefreshButton(): void {
+        this.el.settingsStatusText.textContent = this.i18n.t("settings.loadFailed");
+        this.el.settingsRefreshBtn.style.display = "block";
+    }
+
+    hideSettingRow(fieldName: string): void {
+        const input = document.querySelector<HTMLInputElement | HTMLSelectElement>(
+            `#game-settings [name="${fieldName}"]`,
+        );
+        input?.closest(".row")?.classList.add("hidden");
+    }
+
+    showAllSettingRows(): void {
+        document
+            .querySelectorAll("#game-settings .row")
+            .forEach((row) => row.classList.remove("hidden"));
+    }
+
+    // ============================================
+    // Language selector
+    // ============================================
+
+    setupLanguageSelector(): void {
+        const selectors = this.el.languageSelectors;
+        if (selectors.length === 0) return;
+
+        const optionsHTML = this.i18n.availableLocales
+            .map(
+                (locale) =>
+                    `<option value="${locale}"${locale === this.i18n.locale ? " selected" : ""}>${this.i18n.localeNames[locale]}</option>`,
+            )
+            .join("");
+
+        selectors.forEach((selector) => {
+            selector.innerHTML = optionsHTML;
+
+            selector.addEventListener("change", async () => {
+                await this.i18n.setLocale(selector.value as Locale);
+
+                // Keep the auth and admin selectors in sync.
+                selectors.forEach((other) => {
+                    if (other !== selector) other.value = selector.value;
+                });
+            });
+        });
+    }
 }
-
-// Export singleton instance
-export const uiManager = new UIManager();
-
-// Export class for type usage
-export { UIManager };

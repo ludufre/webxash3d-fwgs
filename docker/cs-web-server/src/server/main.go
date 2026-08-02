@@ -2,49 +2,44 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"syscall"
 
 	goxash3d_fwgs "github.com/yohimik/goxash3d-fwgs/pkg"
 )
 
-// setupEngineLogging redirects stdout to capture engine logs
+// setupEngineLogging redirects stdout so Xash3D console output can be captured.
+//
+// Log output itself goes to realStdout, a duplicate of fd 1 taken before this
+// redirection, so records written by the loggers are not re-read here.
 func setupEngineLogging() {
-	// Save original stdout file descriptor
-	originalStdout, err := syscall.Dup(int(os.Stdout.Fd()))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to duplicate stdout: %v\n", err)
-		return
-	}
-
-	// Create pipe
 	r, w, err := os.Pipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create pipe for logging: %v\n", err)
+		log.Error().Err(err).Msg("failed to create engine log pipe")
 		return
 	}
 
-	// Redirect stdout file descriptor to pipe writer
-	// This affects both Go and C code (CGO)
+	// Redirect fd 1 to the pipe. This affects both Go and C code (CGO).
 	if err := syscall.Dup2(int(w.Fd()), int(os.Stdout.Fd())); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to redirect stdout: %v\n", err)
+		log.Error().Err(err).Msg("failed to redirect stdout")
 		return
 	}
 
-	// Start reading in background
 	go func() {
 		scanner := bufio.NewScanner(r)
 		for scanner.Scan() {
 			line := scanner.Text()
 
-			// Broadcast to WebSocket clients
+			// The admin panel needs the untouched console text: it parses cvar
+			// values and map listings straight out of these lines.
 			broadcastLog(line)
 
-			// Also write to original stdout (for Docker logs)
-			if _, err := syscall.Write(originalStdout, []byte(line+"\n")); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to write to original stdout: %v\n", err)
-			}
+			// stdout gets the same line as a field on a structured record.
+			engineLog.Info().Str("log", line).Msg("engine log")
+		}
+
+		if err := scanner.Err(); err != nil {
+			log.Error().Err(err).Msg("engine log reader stopped")
 		}
 	}()
 }

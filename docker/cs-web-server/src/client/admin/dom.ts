@@ -1,88 +1,78 @@
-import type { DOMElements } from "./types";
+import type {DOMElements} from "./types";
 
-// ============================================
-// DOM Manager Class
-// ============================================
+/**
+ * Resolves and caches every admin panel element.
+ *
+ * Constructed by `AdminApp` and injected — there is no module-level instance,
+ * so a test (or a second panel) can supply its own.
+ */
+export class AdminDom {
+    private cache: DOMElements | null = null;
 
-class DOMManager {
-  private _elements: DOMElements | null = null;
-
-  /**
-   * Gets all DOM elements (lazy initialization)
-   */
-  get elements(): DOMElements {
-    if (!this._elements) {
-      this._elements = this.initializeElements();
+    get elements(): DOMElements {
+        if (!this.cache) {
+            this.cache = this.resolve();
+        }
+        return this.cache;
     }
-    return this._elements;
-  }
 
-  /**
-   * Initializes all DOM element references
-   */
-  private initializeElements(): DOMElements {
-    return {
-      // Containers
-      authContainer: document.getElementById("auth-container")!,
-      adminContainer: document.getElementById("admin-container")!,
-      logsContainer: document.getElementById("logs-container")!,
+    /** Drops cached references (useful after a DOM swap, or in tests). */
+    reset(): void {
+        this.cache = null;
+    }
 
-      // Auth elements
-      authForm: document.getElementById("auth-form") as HTMLFormElement,
-      authError: document.getElementById("auth-error")!,
-      usernameInput: document.getElementById("username") as HTMLInputElement,
-      passwordInput: document.getElementById("password") as HTMLInputElement,
-      loginBtn: document.getElementById("login-btn") as HTMLButtonElement,
+    private resolve(): DOMElements {
+        return {
+            // Containers
+            authContainer: this.require("auth-container"),
+            adminContainer: this.require("admin-container"),
+            logsContainer: this.require("logs-container"),
 
-      // Admin elements
-      disconnectBtn: document.getElementById("disconnect-btn")!,
-      commandForm: document.getElementById("command-form") as HTMLFormElement,
-      commandInput: document.getElementById(
-        "command-input"
-      ) as HTMLInputElement,
+            // Auth elements
+            authForm: this.require<HTMLFormElement>("auth-form"),
+            authError: this.require("auth-error"),
+            usernameInput: this.require<HTMLInputElement>("username"),
+            passwordInput: this.require<HTMLInputElement>("password"),
+            loginBtn: this.require<HTMLButtonElement>("login-btn"),
 
-      // Status elements
-      connectionStatus: document.getElementById("connection-status")!,
-      connectionText: document.getElementById("connection-text")!,
-      tokenExpiry: document.getElementById("token-expiry")!,
-      usernameDisplay: document.getElementById("username-display")!,
+            // Admin elements
+            disconnectBtn: this.require("disconnect-btn"),
+            commandForm: this.require<HTMLFormElement>("command-form"),
+            commandInput: this.require<HTMLInputElement>("command-input"),
 
-      // Settings form
-      gameSettingsForm: document.getElementById(
-        "game-settings"
-      ) as HTMLFormElement,
-      gameSettingsCurrent: document.getElementById(
-        "game-settings-current"
-      ) as HTMLButtonElement,
-      gameSettingsApply: document.getElementById(
-        "game-settings-apply"
-      ) as HTMLButtonElement,
+            // Status elements
+            connectionStatus: this.require("connection-status"),
+            connectionText: this.require("connection-text"),
+            tokenExpiry: this.require("token-expiry"),
+            usernameDisplay: this.require("username-display"),
 
-      // Maps elements
-      mapsSelect: document.getElementById("maps-select") as HTMLSelectElement,
-      changelevelBtn: document.getElementById(
-        "changelevel-btn"
-      ) as HTMLButtonElement,
+            // Settings form
+            gameSettingsForm: this.require<HTMLFormElement>("game-settings"),
+            gameSettingsCurrent: this.require<HTMLButtonElement>("game-settings-current"),
+            gameSettingsApply: this.require<HTMLButtonElement>("game-settings-apply"),
 
-      // Settings status elements
-      settingsStatus: document.getElementById("settings-status")!,
-      settingsStatusText: document.getElementById("settings-status-text")!,
-      settingsRefreshBtn: document.getElementById(
-        "settings-refresh-btn"
-      ) as HTMLButtonElement,
-    };
-  }
+            // Maps elements
+            mapsSelect: this.require<HTMLSelectElement>("maps-select"),
+            changelevelBtn: this.require<HTMLButtonElement>("changelevel-btn"),
 
-  /**
-   * Resets cached elements (useful for testing)
-   */
-  reset(): void {
-    this._elements = null;
-  }
+            // Settings status elements
+            settingsStatus: this.require("settings-status"),
+            settingsStatusText: this.require("settings-status-text"),
+            settingsRefreshBtn: this.require<HTMLButtonElement>("settings-refresh-btn"),
+
+            // Language selectors
+            languageSelectors: [
+                document.getElementById("language-selector-auth"),
+                document.getElementById("language-selector-admin"),
+            ].filter((el): el is HTMLSelectElement => el instanceof HTMLSelectElement),
+        };
+    }
+
+    private require<T extends HTMLElement = HTMLElement>(id: string): T {
+        const element = document.getElementById(id);
+        if (!element) {
+            throw new Error(`Missing required element #${id}`);
+        }
+        return element as T;
+    }
 }
-
-// Export singleton instance
-export const domManager = new DOMManager();
-
-// Export class for type usage
-export { DOMManager };

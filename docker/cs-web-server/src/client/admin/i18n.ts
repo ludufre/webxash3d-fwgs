@@ -1,240 +1,185 @@
-import { storageManager } from "./storage";
-import { logger } from "./logger";
+import type {Logger} from "../core";
+import type {AdminStorage} from "./storage";
 
 // ============================================
 // Types
 // ============================================
 
 type TranslationValue = string | TranslationObject;
+
 interface TranslationObject {
-  [key: string]: TranslationValue;
+    [key: string]: TranslationValue;
 }
 
 export type Locale = "en" | "pt-BR" | "ru";
 
-export interface I18nConfig {
-  defaultLocale: Locale;
-  fallbackLocale: Locale;
-  availableLocales: Locale[];
+export interface I18nOptions {
+    storage: AdminStorage;
+    logger: Logger;
+    defaultLocale?: Locale;
+    fallbackLocale?: Locale;
 }
 
-// ============================================
-// I18n Class
-// ============================================
+/**
+ * Translation catalogue and DOM binder.
+ *
+ * Takes its storage and logger by injection; `AdminApp` owns the instance.
+ */
+export class I18n {
+    readonly availableLocales: readonly Locale[] = ["en", "pt-BR", "ru"];
 
-class I18n {
-  private translations: Map<Locale, TranslationObject> = new Map();
-  private currentLocale: Locale = "en";
-  private fallbackLocale: Locale = "en";
-  private initialized: boolean = false;
+    readonly localeNames: Record<Locale, string> = {
+        en: "English",
+        "pt-BR": "Português (Brasil)",
+        ru: "Русский",
+    };
 
-  /**
-   * Available locales
-   */
-  readonly availableLocales: readonly Locale[] = ["en", "pt-BR", "ru"];
+    private readonly storage: AdminStorage;
+    private readonly logger: Logger;
+    private readonly defaultLocale?: Locale;
+    private readonly fallbackLocale: Locale;
 
-  /**
-   * Locale display names
-   */
-  readonly localeNames: Record<Locale, string> = {
-    en: "English",
-    "pt-BR": "Português (Brasil)",
-    ru: "Русский",
-  };
+    private readonly translations = new Map<Locale, TranslationObject>();
+    private currentLocale: Locale = "en";
+    private ready = false;
 
-  /**
-   * Initializes i18n system
-   */
-  async init(config?: Partial<I18nConfig>): Promise<void> {
-    if (this.initialized) return;
-
-    this.fallbackLocale = config?.fallbackLocale ?? "en";
-
-    // Try to load saved locale, or detect from browser
-    const savedLocale = storageManager.getLocale() as Locale | null;
-    const detectedLocale = this.detectBrowserLocale();
-    const initialLocale: Locale =
-      savedLocale ?? config?.defaultLocale ?? detectedLocale ?? "en";
-
-    // Load fallback locale first
-    await this.loadLocale(this.fallbackLocale);
-
-    // Load initial locale if different from fallback
-    if (initialLocale !== this.fallbackLocale) {
-      await this.loadLocale(initialLocale);
+    constructor(options: I18nOptions) {
+        this.storage = options.storage;
+        this.logger = options.logger;
+        this.defaultLocale = options.defaultLocale;
+        this.fallbackLocale = options.fallbackLocale ?? "en";
     }
 
-    this.currentLocale = initialLocale;
-    this.initialized = true;
-
-    logger.info(`I18n initialized with locale: ${this.currentLocale}`);
-    
-    // Update DOM with loaded translations
-    this.updateDOM();
-  }
-
-  /**
-   * Detects browser locale
-   */
-  private detectBrowserLocale(): Locale | null {
-    const browserLang = navigator.language || navigator.languages?.[0];
-
-    if (!browserLang) return null;
-
-    // Check exact match first
-    if (this.availableLocales.includes(browserLang as Locale)) {
-      return browserLang as Locale;
+    get locale(): Locale {
+        return this.currentLocale;
     }
 
-    // Check language code only (e.g., "pt" from "pt-PT")
-    const langCode = browserLang.split("-")[0];
-    for (const locale of this.availableLocales) {
-      if (locale.startsWith(langCode)) {
-        return locale;
-      }
+    get initialized(): boolean {
+        return this.ready;
     }
 
-    return null;
-  }
+    /** Loads the fallback and the active locale, then paints the DOM. */
+    async init(): Promise<void> {
+        if (this.ready) return;
 
-  /**
-   * Loads a locale's translations
-   */
-  private async loadLocale(locale: Locale): Promise<void> {
-    if (this.translations.has(locale)) return;
+        const initialLocale: Locale =
+            this.storage.getLocale() ??
+            this.defaultLocale ??
+            this.detectBrowserLocale() ??
+            this.fallbackLocale;
 
-    try {
-      const response = await fetch(`/admin/locales/${locale}.json`);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
+        await this.loadLocale(this.fallbackLocale);
+        if (initialLocale !== this.fallbackLocale) {
+            await this.loadLocale(initialLocale);
+        }
 
-      const translations = await response.json();
-      this.translations.set(locale, translations);
-      logger.debug(`Loaded locale: ${locale}`);
-    } catch (error) {
-      logger.error(`Failed to load locale ${locale}:`, error);
-    }
-  }
+        this.currentLocale = initialLocale;
+        this.ready = true;
 
-  /**
-   * Gets current locale
-   */
-  getLocale(): Locale {
-    return this.currentLocale;
-  }
-
-  /**
-   * Sets current locale
-   */
-  async setLocale(locale: Locale): Promise<void> {
-    if (!this.availableLocales.includes(locale)) {
-      logger.warn(`Invalid locale: ${locale}`);
-      return;
+        this.logger.info({locale: this.currentLocale, fallback: this.fallbackLocale}, "initialized");
+        this.updateDOM();
     }
 
-    await this.loadLocale(locale);
-    this.currentLocale = locale;
-    storageManager.setLocale(locale);
+    async setLocale(locale: Locale): Promise<void> {
+        if (!this.availableLocales.includes(locale)) {
+            this.logger.warn({locale}, "invalid locale, ignoring");
+            return;
+        }
 
-    // Update all translated elements
-    this.updateDOM();
+        await this.loadLocale(locale);
+        this.currentLocale = locale;
+        this.storage.setLocale(locale);
 
-    logger.info(`Locale changed to: ${locale}`);
-  }
-
-  /**
-   * Gets a translation by key
-   * @param key - Dot-separated key (e.g., "auth.login")
-   * @param params - Optional parameters for interpolation
-   */
-  t(key: string, params?: Record<string, string | number>): string {
-    const value = this.getValue(key, this.currentLocale);
-
-    if (value === null) {
-      // Try fallback locale
-      const fallbackValue = this.getValue(key, this.fallbackLocale);
-      if (fallbackValue === null) {
-        logger.warn(`Missing translation: ${key}`);
-        return key;
-      }
-      return this.interpolate(fallbackValue, params);
+        this.updateDOM();
+        this.logger.info({locale}, "locale changed");
     }
 
-    return this.interpolate(value, params);
-  }
+    /**
+     * Translates a dot-separated key, interpolating `{name}` placeholders.
+     */
+    t(key: string, params?: Record<string, string | number>): string {
+        const value = this.getValue(key, this.currentLocale);
+        if (value !== null) {
+            return this.interpolate(value, params);
+        }
 
-  /**
-   * Gets a value from translations by dot-separated key
-   */
-  private getValue(key: string, locale: Locale): string | null {
-    const translations = this.translations.get(locale);
-    if (!translations) return null;
+        const fallbackValue = this.getValue(key, this.fallbackLocale);
+        if (fallbackValue === null) {
+            this.logger.warn({key, locale: this.currentLocale}, "missing translation");
+            return key;
+        }
 
-    const keys = key.split(".");
-    let current: TranslationValue = translations;
-
-    for (const k of keys) {
-      if (typeof current !== "object" || current === null) return null;
-      current = (current as TranslationObject)[k];
-      if (current === undefined) return null;
+        return this.interpolate(fallbackValue, params);
     }
 
-    return typeof current === "string" ? current : null;
-  }
+    /** Applies translations to every `data-i18n*` element. */
+    updateDOM(): void {
+        document.querySelectorAll("[data-i18n]").forEach((el) => {
+            const key = el.getAttribute("data-i18n");
+            if (key) el.textContent = this.t(key);
+        });
 
-  /**
-   * Interpolates parameters into a string
-   */
-  private interpolate(
-    text: string,
-    params?: Record<string, string | number>
-  ): string {
-    if (!params) return text;
+        document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+            const key = el.getAttribute("data-i18n-placeholder");
+            if (key && el instanceof HTMLInputElement) el.placeholder = this.t(key);
+        });
 
-    return text.replace(/\{(\w+)\}/g, (_, key) => {
-      return params[key]?.toString() ?? `{${key}}`;
-    });
-  }
+        document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+            const key = el.getAttribute("data-i18n-title");
+            if (key && el instanceof HTMLElement) el.title = this.t(key);
+        });
 
-  /**
-   * Updates all DOM elements with data-i18n attributes
-   */
-  updateDOM(): void {
-    // Update text content
-    document.querySelectorAll("[data-i18n]").forEach((el) => {
-      const key = el.getAttribute("data-i18n");
-      if (key) {
-        el.textContent = this.t(key);
-      }
-    });
+        document.title = this.t("app.title");
+        document.documentElement.lang = this.currentLocale;
+    }
 
-    // Update placeholders
-    document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
-      const key = el.getAttribute("data-i18n-placeholder");
-      if (key && el instanceof HTMLInputElement) {
-        el.placeholder = this.t(key);
-      }
-    });
+    private detectBrowserLocale(): Locale | null {
+        const browserLang = navigator.language || navigator.languages?.[0];
+        if (!browserLang) return null;
 
-    // Update titles
-    document.querySelectorAll("[data-i18n-title]").forEach((el) => {
-      const key = el.getAttribute("data-i18n-title");
-      if (key && el instanceof HTMLElement) {
-        el.title = this.t(key);
-      }
-    });
+        if (this.availableLocales.includes(browserLang as Locale)) {
+            return browserLang as Locale;
+        }
 
-    // Update document title
-    document.title = this.t("app.title");
+        const langCode = browserLang.split("-")[0];
+        return this.availableLocales.find((l) => l.startsWith(langCode)) ?? null;
+    }
 
-    // Update html lang attribute
-    document.documentElement.lang = this.currentLocale;
-  }
+    private async loadLocale(locale: Locale): Promise<void> {
+        if (this.translations.has(locale)) return;
+
+        try {
+            const response = await fetch(`/admin/locales/${locale}.json`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            this.translations.set(locale, await response.json());
+            this.logger.debug({locale}, "loaded locale");
+        } catch (error) {
+            this.logger.error({locale, err: error}, "failed to load locale");
+        }
+    }
+
+    private getValue(key: string, locale: Locale): string | null {
+        const translations = this.translations.get(locale);
+        if (!translations) return null;
+
+        let current: TranslationValue | undefined = translations;
+        for (const part of key.split(".")) {
+            if (typeof current !== "object" || current === null) return null;
+            current = current[part];
+            if (current === undefined) return null;
+        }
+
+        return typeof current === "string" ? current : null;
+    }
+
+    private interpolate(
+        text: string,
+        params?: Record<string, string | number>,
+    ): string {
+        if (!params) return text;
+        return text.replace(/\{(\w+)\}/g, (_, key) => params[key]?.toString() ?? `{${key}}`);
+    }
 }
-
-// Export singleton instance
-export const i18n = new I18n();
-
-// Export class for type usage (as I18nManager for consistency)
-export { I18n as I18nManager };

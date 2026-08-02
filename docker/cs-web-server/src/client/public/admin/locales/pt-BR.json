@@ -14,7 +14,10 @@
   },
   "session": {
     "adminSession": "Sessão Admin",
-    "tokenExpiry": "Token expira em {minutes}m"
+    "tokenExpiry": "Token expira em {minutes}m",
+    "loggedInAs": "Conectado como: {username}",
+    "tokenExpired": "Token expirado",
+    "tokenExpiryHours": "Token expira em {hours}h {minutes}m"
   },
   "console": {
     "serverConsole": "Console do Servidor",
@@ -79,7 +82,8 @@
     "kickIdlers": "Expulsar inativos e TKers",
     "hostageKillsKick": "Expulsar após (x) reféns mortos",
     "allowFlashlight": "Permitir lanterna",
-    "autocrosshair": "Mira automática"
+    "autocrosshair": "Mira automática",
+    "loadFailed": "Falha ao carregar as configurações"
   },
   "errors": {
     "usernameRequired": "Usuário é obrigatório",
