@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {WebSocketClient} from "./websocket";
 import {createFakeLogger, FakeWebSocket} from "../testing/fakes";
 
-function createClient(options: Partial<{autoReconnect: boolean; reconnectDelay: number}> = {}) {
+function createClient(options: Partial<{ autoReconnect: boolean; reconnectDelay: number }> = {}) {
     return new WebSocketClient({
         url: "/websocket",
         logger: createFakeLogger(),

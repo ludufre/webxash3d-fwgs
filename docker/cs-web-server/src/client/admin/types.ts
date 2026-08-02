@@ -3,21 +3,22 @@
 // ============================================
 
 export interface TokenData {
-  token: string;
-  expiresAt: number;
-  username: string;
+    token: string;
+    expiresAt: number;
+    username: string;
 }
 
 export interface LogEntry {
-  timestamp: string;
-  message: string;
+    timestamp: string;
+    message: string;
 }
 
 export interface JWTPayload {
-  username: string;
-  iat?: number;
-  exp?: number;
-  [key: string]: unknown;
+    username: string;
+    iat?: number;
+    exp?: number;
+
+    [key: string]: unknown;
 }
 
 export type WebSocketMessage = string | LogEntry[] | LogEntry
@@ -31,10 +32,10 @@ export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 export type EventCallback<T = void> = (data: T) => void;
 
 export interface AdminEvents {
-  login: TokenData;
-  logout: void;
-  settingReceived: string;
-  mapsListed: string[];
+    login: TokenData;
+    logout: void;
+    settingReceived: string;
+    mapsListed: string[];
 }
 
 // ============================================
@@ -42,43 +43,43 @@ export interface AdminEvents {
 // ============================================
 
 export interface DOMElements {
-  // Containers
-  authContainer: HTMLElement;
-  adminContainer: HTMLElement;
-  logsContainer: HTMLElement;
+    // Containers
+    authContainer: HTMLElement;
+    adminContainer: HTMLElement;
+    logsContainer: HTMLElement;
 
-  // Auth elements
-  authForm: HTMLFormElement;
-  authError: HTMLElement;
-  usernameInput: HTMLInputElement;
-  passwordInput: HTMLInputElement;
-  loginBtn: HTMLButtonElement;
+    // Auth elements
+    authForm: HTMLFormElement;
+    authError: HTMLElement;
+    usernameInput: HTMLInputElement;
+    passwordInput: HTMLInputElement;
+    loginBtn: HTMLButtonElement;
 
-  // Admin elements
-  disconnectBtn: HTMLElement;
-  commandForm: HTMLFormElement;
-  commandInput: HTMLInputElement;
+    // Admin elements
+    disconnectBtn: HTMLElement;
+    commandForm: HTMLFormElement;
+    commandInput: HTMLInputElement;
 
-  // Status elements
-  connectionStatus: HTMLElement;
-  connectionText: HTMLElement;
-  tokenExpiry: HTMLElement;
-  usernameDisplay: HTMLElement;
+    // Status elements
+    connectionStatus: HTMLElement;
+    connectionText: HTMLElement;
+    tokenExpiry: HTMLElement;
+    usernameDisplay: HTMLElement;
 
-  // Settings form
-  gameSettingsForm: HTMLFormElement;
-  gameSettingsCurrent: HTMLButtonElement;
-  gameSettingsApply: HTMLButtonElement;
+    // Settings form
+    gameSettingsForm: HTMLFormElement;
+    gameSettingsCurrent: HTMLButtonElement;
+    gameSettingsApply: HTMLButtonElement;
 
-  // Maps elements
-  mapsSelect: HTMLSelectElement;
-  changelevelBtn: HTMLButtonElement;
+    // Maps elements
+    mapsSelect: HTMLSelectElement;
+    changelevelBtn: HTMLButtonElement;
 
-  // Settings status elements
-  settingsStatus: HTMLElement;
-  settingsStatusText: HTMLElement;
-  settingsRefreshBtn: HTMLButtonElement;
+    // Settings status elements
+    settingsStatus: HTMLElement;
+    settingsStatusText: HTMLElement;
+    settingsRefreshBtn: HTMLButtonElement;
 
-  // Language selectors (auth screen and admin header)
-  languageSelectors: HTMLSelectElement[];
+    // Language selectors (auth screen and admin header)
+    languageSelectors: HTMLSelectElement[];
 }

@@ -1,9 +1,4 @@
-import {
-    ApiClient,
-    type ApiClientOptions,
-    type ApiResponse,
-    type RequestOptions,
-} from "../core";
+import {ApiClient, type ApiClientOptions, type ApiResponse, type RequestOptions,} from "../core";
 
 export interface SaltResponse {
     salt: string;

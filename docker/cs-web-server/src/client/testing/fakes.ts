@@ -94,7 +94,8 @@ export class FakeDataChannel {
     onerror: (() => void) | null = null;
     onmessage: ((event: MessageEvent) => void) | null = null;
 
-    constructor(readonly label: string) {}
+    constructor(readonly label: string) {
+    }
 
     send(data: unknown): void {
         this.sent.push(data);
@@ -182,7 +183,7 @@ export class FakePeerConnection {
     }
 
     /** Delivers both data channels the server opens, and returns them. */
-    emitDataChannels(): {read: FakeDataChannel; write: FakeDataChannel} {
+    emitDataChannels(): { read: FakeDataChannel; write: FakeDataChannel } {
         const read = new FakeDataChannel("read");
         const write = new FakeDataChannel("write");
 

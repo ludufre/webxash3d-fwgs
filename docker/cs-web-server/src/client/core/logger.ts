@@ -12,6 +12,7 @@ export type LogLevel =
 /** Pino's call signature: structured object first, optional message second. */
 export interface LogFn {
     (obj: unknown, msg?: string, ...args: unknown[]): void;
+
     (msg: string, ...args: unknown[]): void;
 }
 
@@ -29,6 +30,7 @@ export interface Logger {
     warn: LogFn;
     error: LogFn;
     fatal: LogFn;
+
     /** Scoped logger, e.g. `logger.child({scope: "api"})`. */
     child(bindings: Record<string, unknown>): Logger;
 }

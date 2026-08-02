@@ -2,14 +2,7 @@ import {loadAsync} from "jszip";
 import xashURL from "xash3d-fwgs/xash.wasm?url";
 import gl4esURL from "xash3d-fwgs/libref_webgl2.wasm?url";
 
-import {
-    ApiClient,
-    WebSocketClient,
-    createLogger,
-    fetchClientConfig,
-    type ClientConfig,
-    type Logger,
-} from "./core";
+import {type ClientConfig, createLogger, fetchClientConfig, type Logger, WebSocketClient,} from "./core";
 import {GameDom, type GameElements} from "./dom";
 import {GameStorage} from "./storage";
 import {Xash3DWebRTC} from "./webrtc";
@@ -222,7 +215,7 @@ export class App {
         const chunks: Uint8Array[] = [];
         let received = 0;
 
-        for (;;) {
+        for (; ;) {
             const {done, value} = await reader.read();
             if (done) break;
 

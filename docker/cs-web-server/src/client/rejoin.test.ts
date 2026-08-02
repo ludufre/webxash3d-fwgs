@@ -9,12 +9,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest";
 import {WebSocketClient} from "./core";
 import {WebRTCTransport} from "./transport";
-import {
-    completeHandshake,
-    createFakeLogger,
-    FakePeerConnection,
-    FakeWebSocket,
-} from "./testing/fakes";
+import {completeHandshake, createFakeLogger, FakePeerConnection, FakeWebSocket,} from "./testing/fakes";
 
 const SERVER_ADDRESS = "127.0.0.1:8080";
 const RESTART_DELAY = 1000;

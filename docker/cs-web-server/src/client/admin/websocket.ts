@@ -1,10 +1,9 @@
-import {WebSocketClient, type Logger} from "../core";
+import {type Logger, WebSocketClient} from "../core";
 import type {AdminDom} from "./dom";
 import type {I18n} from "./i18n";
 import type {DOMElements, LogEntry, TokenData, WebSocketMessage} from "./types";
 import type {UIManager} from "./ui";
 import {stripAnsiCodes} from "./utils";
-import {forEach} from "jszip";
 
 const EVENT_VERSION = "v1";
 

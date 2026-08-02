@@ -132,7 +132,7 @@ export class Xash3DWebRTC extends Xash3D {
             data: data as Packet["data"],
         };
 
-        const blob = data as {arrayBuffer?: () => Promise<Int8Array>};
+        const blob = data as { arrayBuffer?: () => Promise<Int8Array> };
         if (typeof blob?.arrayBuffer === "function") {
             void blob.arrayBuffer().then((buffer) => {
                 packet.data = buffer;

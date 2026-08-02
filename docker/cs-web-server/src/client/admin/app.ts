@@ -1,10 +1,4 @@
-import {
-    DEFAULT_LOG_LEVEL,
-    createLogger,
-    fetchClientConfig,
-    type ClientConfig,
-    type Logger,
-} from "../core";
+import {type ClientConfig, createLogger, DEFAULT_LOG_LEVEL, fetchClientConfig, type Logger,} from "../core";
 import {AdminApiClient} from "./api";
 import {AuthService} from "./auth";
 import {CommandService} from "./commands";
