@@ -69,7 +69,6 @@ export class App {
         this.socket = new WebSocketClient({
             url: SIGNALLING_PATH,
             logger: this.logger.child({scope: "websocket"}),
-            autoReconnect: false,
         });
 
         this.restorePreferences();
@@ -80,7 +79,6 @@ export class App {
         this.xash = this.createEngine(config);
         this.xash.onSlowConnection = () => this.setWarningVisible(true);
         this.xash.onConnected = () => this.setWarningVisible(false);
-        this.xash.onDisconnected = () => this.setWarningVisible(true);
 
         const [archive, extras] = await Promise.all([
             archivePromise.then((buffer) => loadAsync(buffer)),
