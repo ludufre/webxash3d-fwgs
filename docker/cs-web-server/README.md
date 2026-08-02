@@ -6,6 +6,15 @@ in-browser gameplay and remote multiplayer support.
 
 ---
 
+## 🙏 Credits & Acknowledgements
+
+Special thanks that made this project possible:
+
+- [@ludufre](https://github.com/ludufre) - docker images and metamod plugins
+- [@ololoken](https://github.com/ololoken) — graphics, WebGL2, and resolving many issues
+
+---
+
 ## 🧱 Features
 
 - ✅ Web-based CS 1.6 client (HTML + TypeScript + Vite)

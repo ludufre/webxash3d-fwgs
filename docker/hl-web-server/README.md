@@ -1,8 +1,17 @@
 # Half-Life Web Server Docker
 
-This repository provides a **plug-and-play Docker image** for running a fully functional **Half-Life** client
-and dedicated server via the web. Powered by **Xash3D FWGS**, **WebRTC**, and modern web tooling, this setup allows for
+This repository provides a **plug-and-play Docker image** for running a fully functional **Half-Life** client and
+dedicated server via the web. Powered by **Xash3D FWGS**, **WebRTC**, and modern web tooling, this setup allows for
 in-browser gameplay and remote multiplayer support.
+
+---
+
+## 🙏 Credits & Acknowledgements
+
+Special thanks that made this project possible:
+
+- [@ludufre](https://github.com/ludufre) - docker images and metamod plugins
+- [@ololoken](https://github.com/ololoken) — graphics, WebGL2, and resolving many issues
 
 ---
 
@@ -20,7 +29,10 @@ in-browser gameplay and remote multiplayer support.
 
 ## 🎯 Looking for AMX Mod X Support?
 
-If you want **AMX Mod X and Metamod pre-installed and ready to use**, check out the [hl-web-server-metpamx](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/hl-web-server-metpamx) variant. It includes:
+If you want **AMX Mod X and Metamod pre-installed and ready to use**, check out
+the [hl-web-server-metpamx](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/hl-web-server-metpamx) variant.
+It includes:
+
 - Pre-configured Metamod-P
 - AMX Mod X with all base modules
 - Ready for custom plugins out of the box
@@ -111,9 +123,11 @@ Then open `http://<your-server-ip>:27016` in your browser!
 
 ## 🌍 Environment Variables
 
-This image uses the same configuration system as the [CS Web Server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server#-environment-variables).
+This image uses the same configuration system as
+the [CS Web Server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server#-environment-variables).
 
-The default values for Half-Life are pre-configured, but you can customize them using the same environment variables documented in the CS Web Server README.
+The default values for Half-Life are pre-configured, but you can customize them using the same environment variables
+documented in the CS Web Server README.
 
 ## 🛠️ Customization
 
@@ -128,17 +142,17 @@ To include custom content:
 
 This image includes an optional **Admin Panel** for remote administration.
 
-For information on how to enable and use the Admin Panel, see the [CS Web Server Admin Panel documentation](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server#-admin-panel).
+For information on how to enable and use the Admin Panel, see
+the [CS Web Server Admin Panel documentation](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server#-admin-panel).
 
 ## 🌐 Discord Community
 
-Need help? Want to share your project or ideas?
-**[Join our Discord community](https://discord.gg/cRNGjWfTDd)** to connect with others!
+Need help? Want to share your project or ideas? **[Join our Discord community](https://discord.gg/cRNGjWfTDd)** to
+connect with others!
 
 ## 📜 License
 
-This project is licensed under the MIT License.
-See the [LICENSE](./LICENSE.md) file for more information.
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE.md) file for more information.
 
 ## 📝 Changelog
 
@@ -147,5 +161,7 @@ list of updates and release history.
 
 ## 🔗 Related Projects
 
-- [cs-web-server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server) - Counter-Strike 1.6 Web Server
-- [hl-web-server-metpamx](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/hl-web-server-metpamx) - Version with AMX Mod X & Metamod pre-installed
+- [cs-web-server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server) - Counter-Strike 1.6 Web
+  Server
+- [hl-web-server-metpamx](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/hl-web-server-metpamx) - Version
+  with AMX Mod X & Metamod pre-installed

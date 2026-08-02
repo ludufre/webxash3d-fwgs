@@ -1,8 +1,8 @@
 # Half-Life Web Server Docker (with AMX Mod X)
 
-This image provides a **plug-and-play Docker image** for running a fully functional **Half-Life** client
-and dedicated server via the web with **AMX Mod X pre-installed**. Powered by **Xash3D FWGS**, **WebRTC**, and modern web tooling, this setup allows for
-in-browser gameplay and remote multiplayer support with full plugin support.
+This image provides a **plug-and-play Docker image** for running a fully functional **Half-Life** client and dedicated
+server via the web with **AMX Mod X pre-installed**. Powered by **Xash3D FWGS**, **WebRTC**, and modern web tooling,
+this setup allows for in-browser gameplay and remote multiplayer support with full plugin support.
 
 Repository: [github.com/yohimik/webxash3d-fwgs/docker/hl-web-server-metpamx](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/hl-web-server-metpamx)
 
@@ -12,9 +12,10 @@ Repository: [github.com/yohimik/webxash3d-fwgs/docker/hl-web-server-metpamx](htt
 
 Special thanks that made this project possible:
 
-- [@ludufre](https://github.com/ludufre) initial Docker image creation and plugins support
+- [@ludufre](https://github.com/ludufre) - docker images and metamod plugins
+- [@ololoken](https://github.com/ololoken) — graphics, WebGL2, and resolving many issues
 
---- 
+---
 
 ## 🧱 Features
 
@@ -92,7 +93,8 @@ Then open `http://<your-server-ip>:27016` in your browser!
 
 ## 🌍 Environment Variables
 
-Variables available from [base image](https://github.com/yohimik/webxash3d-fwgs/blob/main/docker/hl-web-server/README.md#-environment-variables)
+Variables available
+from [base image](https://github.com/yohimik/webxash3d-fwgs/blob/main/docker/hl-web-server/README.md#-environment-variables)
 
 ## 🛠️ Customization
 
@@ -101,6 +103,7 @@ Variables available from [base image](https://github.com/yohimik/webxash3d-fwgs/
 This image comes with AMX Mod X pre-installed. To add custom plugins:
 
 **Mount plugins directory:**
+
 ```yaml
 volumes:
   - "./valve.zip:/xashds/public/valve.zip"
@@ -109,6 +112,7 @@ volumes:
 ```
 
 **Extend the image:**
+
 ```dockerfile
 FROM yohimik/hl-web-server-metpamx:latest
 COPY my-plugins/*.amxx /xashds/valve/addons/amxmodx/plugins/
@@ -117,6 +121,7 @@ COPY my-plugins/*.amxx /xashds/valve/addons/amxmodx/plugins/
 ### Plugin Configuration
 
 Edit `plugins.ini` to enable/disable plugins:
+
 ```yaml
 volumes:
   - "./plugins.ini:/xashds/valve/addons/amxmodx/configs/plugins.ini"
@@ -126,23 +131,24 @@ volumes:
 
 This image includes an optional **Admin Panel** for remote administration.
 
-For information on how to enable and use the Admin Panel, see the [CS Web Server Admin Panel documentation](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server#-admin-panel).
+For information on how to enable and use the Admin Panel, see
+the [CS Web Server Admin Panel documentation](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server#-admin-panel).
 
 ## 🌐 Discord Community
 
-Need help? Want to share your project or ideas?
-**[Join our Discord community](https://discord.gg/cRNGjWfTDd)** to connect with others!
+Need help? Want to share your project or ideas? **[Join our Discord community](https://discord.gg/cRNGjWfTDd)** to
+connect with others!
 
 ## 📜 License
 
-This project is licensed under the MIT License.
-See the [LICENSE](./LICENSE.md) file for more information.
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE.md) file for more information.
 
 ## 📝 Changelog
 
-See [CHANGELOG.md](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/hl-web-server-metpamx/CHANGELOG.md) for a full
-list of updates and release history.
+See [CHANGELOG.md](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/hl-web-server-metpamx/CHANGELOG.md) for a
+full list of updates and release history.
 
 ## 🔗 Related Projects
 
-- [hl-web-server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/hl-web-server) - Vanilla version without AMX Mod X
+- [hl-web-server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/hl-web-server) - Vanilla version without
+  AMX Mod X

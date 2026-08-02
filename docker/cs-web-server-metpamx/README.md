@@ -1,8 +1,8 @@
 # Counter-Strike 1.6 Web Server Docker (with AMX Mod X)
 
 This repository provides a **plug-and-play Docker image** for running a fully functional **Counter-Strike 1.6** client
-and dedicated server via the web with **AMX Mod X pre-installed**. Powered by **Xash3D FWGS**, **WebRTC**, and modern web tooling, this setup allows for
-in-browser gameplay and remote multiplayer support with full plugin support.
+and dedicated server via the web with **AMX Mod X pre-installed**. Powered by **Xash3D FWGS**, **WebRTC**, and modern
+web tooling, this setup allows for in-browser gameplay and remote multiplayer support with full plugin support.
 
 ---
 
@@ -10,9 +10,10 @@ in-browser gameplay and remote multiplayer support with full plugin support.
 
 Special thanks that made this project possible:
 
-- [@ludufre](https://github.com/ludufre) initial Docker image creation and plugins support
+- [@ludufre](https://github.com/ludufre) - docker images and metamod plugins
+- [@ololoken](https://github.com/ololoken) — graphics, WebGL2, and resolving many issues
 
---- 
+---
 
 ## 🧱 Features
 
@@ -29,13 +30,16 @@ Special thanks that made this project possible:
 
 ## 🆚 Difference from Base Version
 
-This image extends the base [cs-web-server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server) with:
+This image extends the base [cs-web-server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server)
+with:
+
 - **Metamod-P** pre-installed and configured
 - **AMX Mod X** pre-installed with all base modules
 - Modified `liblist.gam` to load Metamod automatically
 - Pre-configured plugin directories and files
 
-If you don't need AMX Mod X or prefer a vanilla server, use the [base cs-web-server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server) instead.
+If you don't need AMX Mod X or prefer a vanilla server, use
+the [base cs-web-server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server) instead.
 
 ---
 
@@ -104,11 +108,13 @@ Then open `http://<your-server-ip>:27016` in your browser!
 
 ## 🌍 Environment Variables
 
-Variables available from [base image](https://github.com/yohimik/webxash3d-fwgs/blob/main/docker/cs-web-server/README.md#-environment-variables)
+Variables available
+from [base image](https://github.com/yohimik/webxash3d-fwgs/blob/main/docker/cs-web-server/README.md#-environment-variables)
 
 ## 🛠️ Customization
 
 ### Client UI/UX
+
 Modify files in src/client
 
 ### AMX Mod X Plugins
@@ -116,6 +122,7 @@ Modify files in src/client
 This image comes with AMX Mod X pre-installed. To add custom plugins:
 
 **Option 1: Mount plugins directory**
+
 ```yaml
 volumes:
   - "./plugins:/xashds/cstrike/addons/amxmodx/plugins"
@@ -123,12 +130,14 @@ volumes:
 ```
 
 **Option 2: Mount entire addons directory**
+
 ```yaml
 volumes:
   - "./addons:/xashds/cstrike/addons"
 ```
 
 **Option 3: Build custom image**
+
 ```dockerfile
 FROM yohimik/cs-web-server-metpamx:latest
 COPY my-plugins/*.amxx /xashds/cstrike/addons/amxmodx/plugins/
@@ -138,6 +147,7 @@ COPY my-configs/*.cfg /xashds/cstrike/addons/amxmodx/configs/
 ### Plugin Configuration
 
 Edit `plugins.ini` to enable/disable plugins:
+
 ```yaml
 volumes:
   - "./plugins.ini:/xashds/cstrike/addons/amxmodx/configs/plugins.ini"
@@ -151,23 +161,24 @@ The Metamod plugins are configured in `/xashds/cstrike/addons/metamod/plugins.in
 
 This image includes an optional **Admin Panel** for remote administration.
 
-For information on how to enable and use the Admin Panel, see the [CS Web Server Admin Panel documentation](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server#-admin-panel).
+For information on how to enable and use the Admin Panel, see
+the [CS Web Server Admin Panel documentation](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server#-admin-panel).
 
 ## 🌐 Discord Community
 
-Need help? Want to share your project or ideas?
-**[Join our Discord community](https://discord.gg/cRNGjWfTDd)** to connect with others!
+Need help? Want to share your project or ideas? **[Join our Discord community](https://discord.gg/cRNGjWfTDd)** to
+connect with others!
 
 ## 📜 License
 
-This project is licensed under the MIT License.
-See the [LICENSE](./LICENSE.md) file for more information.
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE.md) file for more information.
 
 ## 📝 Changelog
 
-See [CHANGELOG.md](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server-metpamx/CHANGELOG.md) for a full
-list of updates and release history.
+See [CHANGELOG.md](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server-metpamx/CHANGELOG.md) for a
+full list of updates and release history.
 
 ## 🔗 Related Projects
 
-- [cs-web-server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server) - Vanilla version without AMX Mod X
+- [cs-web-server](https://github.com/yohimik/webxash3d-fwgs/tree/main/docker/cs-web-server) - Vanilla version without
+  AMX Mod X

@@ -126,6 +126,8 @@ Need help? Want to share your project or ideas?
 
 Support WebRTC/UDP proxy (webxash3d-mserver).
 
+Metamod proxy plugin [webxash-metamod](https://github.com/bordeux/webxash-metamod)
+
 ## Engine Touch Support (potentially)
 
 Enable touch support at the engine level.
